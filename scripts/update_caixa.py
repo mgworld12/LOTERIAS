@@ -74,6 +74,20 @@ def normalize(kind, raw):
     if any(n < low or n > maximum for n in nums):
         raise ValueError(f"Dezena fora do intervalo em {kind} {contest}")
     item = {"type": kind, "contest": contest, "date": date, "numbers": nums}
+    # Mega da Virada é um concurso especial da Mega-Sena, não uma modalidade
+    # independente. Marcar explicitamente os registros para permitir análises
+    # históricas próprias sem duplicar concursos.
+    if kind == "megasena":
+        special_text = " ".join(str(raw.get(k) or "") for k in (
+            "nomeConcursoEspecial", "descricaoConcurso", "nomeEspecial",
+            "concursoEspecial", "descricao"
+        )).casefold()
+        is_mega_virada = (
+            "mega da virada" in special_text
+            or (date[5:] == "12-31")
+        )
+        if is_mega_virada:
+            item["specialDraw"] = "mega-da-virada"
     if kind == "duplasena":
         second = numbers({"x": raw.get("listaDezenasSegundoSorteio") or raw.get("dezenasSegundoSorteio") or raw.get("listaDezenas2")}, "x")
         if len(second) != 6 or len(set(second)) != 6 or any(n < 1 or n > 50 for n in second):
@@ -104,6 +118,11 @@ def normalize(kind, raw):
 def main():
     OUT.parent.mkdir(parents=True, exist_ok=True)
     old = { (d["type"], int(d["contest"])): d for d in json.loads(OUT.read_text("utf-8")).get("draws", []) } if OUT.exists() else {}
+    # Retrocompatibilidade: identifica também as edições já presentes no
+    # espelho antes da inclusão do marcador especial.
+    for draw in old.values():
+        if draw.get("type") == "megasena" and str(draw.get("date", "")).endswith("-12-31"):
+            draw["specialDraw"] = "mega-da-virada"
     added = 0
     errors = []
     for kind, (slug, *_rest) in MODALITIES.items():
@@ -111,7 +130,7 @@ def main():
             latest_raw = get_json(API + slug)
             latest = normalize(kind, latest_raw)
             existing = sorted(c for t, c in old if t == kind)
-            start = (existing[-1] + 1) if existing else latest["contest"]
+            start = (existing[-1] + 1) if existing else 1
             if start > latest["contest"]:
                 continue
             for contest in range(start, latest["contest"] + 1):
@@ -121,7 +140,7 @@ def main():
                     raise ValueError(f"Resposta retornou concurso {item['contest']} ao solicitar {contest}")
                 old[(kind, contest)] = item
                 added += 1
-                time.sleep(0.15)
+                time.sleep(0.25)
         except Exception as exc:
             errors.append(f"{kind}: {exc}")
             print(f"::warning::{kind}: {exc}")
