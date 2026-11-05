@@ -64,3 +64,17 @@ Frequência, atraso, equilíbrio e padrões são descrições de resultados pass
 - Portal Loterias CAIXA: https://loterias.caixa.gov.br/
 - Regras dos sorteios: https://loterias.caixa.gov.br/Paginas/regras-sorteios.aspx
 - Regras do Super Sete: https://loterias.caixa.gov.br/Paginas/Super-sete.aspx
+
+
+## Correção de sincronização (novembro/2026)
+
+O navegador não consulta mais diretamente a API da CAIXA. Isso evita falhas CORS/HTTP 500 e repetição de chamadas no dispositivo. O site lê somente `data/results.json`, publicado pelo workflow `Atualizar resultados CAIXA`.
+
+Na primeira execução com `data/results.json` vazio, o atualizador começa pelo concurso 1 de cada modalidade e tenta preencher o histórico em ordem. Se a CAIXA falhar em um concurso, a modalidade é registrada como parcial e a próxima execução retoma a partir do último concurso armazenado. A primeira carga pode demorar e o workflow tem limite de até 6 horas por execução.
+
+Para iniciar: GitHub → repositório LOTERIAS → Actions → `Atualizar resultados CAIXA` → `Run workflow`. Acompanhe os avisos e o arquivo `data/results.json`. O site não deve mostrar “histórico completo” até que os nove históricos estejam efetivamente preenchidos.
+
+
+## Mega da Virada
+
+A Mega da Virada está incluída no histórico da Mega-Sena como concurso especial, e não como uma décima modalidade. O atualizador marca os registros identificados oficialmente como “Mega da Virada” e também reconhece o sorteio de 31 de dezembro. Esses registros ficam identificados por `specialDraw: "mega-da-virada"` em `data/results.json`, permitindo estatísticas e filtros específicos sem duplicar os concursos da Mega-Sena.
