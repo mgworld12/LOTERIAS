@@ -18,10 +18,16 @@ jobs:
         uses: actions/checkout@v4
       - name: Configurar GitHub Pages
         uses: actions/configure-pages@v5
-      - name: Preparar arquivos do site
+      - name: Montar somente os arquivos do site
+        run: |
+          mkdir _site
+          cp index.html style.css script.js service-worker.js manifest.json _site/
+          cp -r icons data _site/
+          touch _site/.nojekyll
+      - name: Preparar artefato
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'
+          path: _site
   deploy:
     environment:
       name: github-pages
