@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-    <meta name="theme-color" content="#102f46" />
+    <meta name="theme-color" content="#0d4a21" />
     <meta name="description" content="Análise estatística, histórico oficial e geração de jogos das Loterias CAIXA." />
     <title>Loterias CAIXA — Análise & Estratégias</title>
     <link rel="manifest" href="manifest.json" />
@@ -14,29 +14,37 @@
   </head>
   <body>
     <a class="skip" href="#conteudo">Ir para o conteúdo</a>
-    <header>
-      <a class="brand" href="#inicio"
-        ><b>LC</b><span><strong>Loterias CAIXA</strong><small>Análise & Estratégias</small></span></a
-      >
-      <div class="header-actions">
-        <span id="connection" class="connection" role="status">Verificando…</span
-        ><button id="install" hidden>Instalar aplicativo</button>
-      </div>
-    </header>
+
     <main id="inicio">
       <span id="conteudo" tabindex="-1"></span>
-      <section class="hero">
-        <div>
-          <small class="eyebrow">PAINEL DE ANÁLISE</small>
-          <h1>Histórico, estatísticas e geração de jogos.</h1>
-          <p>Dados de concursos, análises retrospectivas e combinações configuráveis para nove modalidades.</p>
+      <section class="banner" aria-label="Loterias da Caixa">
+        <div class="banner-tools">
+          <span id="connection" class="connection" role="status">Verificando…</span>
+          <button id="install" hidden>Instalar aplicativo</button>
         </div>
-        <aside class="status-card">
-          <b id="status">Base ainda não sincronizada</b
-          ><small id="substatus">A sincronização consulta os resultados publicados pela CAIXA.</small
-          ><small id="lastSync">Espelho ainda não publicado</small
-          ><progress id="syncProgress" max="100" value="0" hidden aria-label="Progresso da atualização"></progress>
-        </aside>
+        <h1 class="banner-title"><img src="icons/icon.svg" alt="" width="42" height="42" />Loterias da Caixa</h1>
+        <div class="game-buttons" role="group" aria-label="Escolha o jogo">
+          <button class="game-btn" data-type="megasena" data-key="megasena" aria-pressed="false">Mega-Sena</button>
+          <button class="game-btn" data-type="megasena" data-key="virada" aria-pressed="false">Mega da Virada</button>
+          <button class="game-btn" data-type="duplasena" data-key="duplasena" aria-pressed="false">Dupla Sena</button>
+          <button class="game-btn" data-type="quina" data-key="quina" aria-pressed="false">Quina</button>
+          <button class="game-btn" data-type="lotofacil" data-key="lotofacil" aria-pressed="false">Lotofácil</button>
+          <button class="game-btn" data-type="maismilionaria" data-key="maismilionaria" aria-pressed="false">
+            +Milionária
+          </button>
+          <button class="game-btn" data-type="diadesorte" data-key="diadesorte" aria-pressed="false">
+            Dia de Sorte
+          </button>
+          <button class="game-btn" data-type="lotomania" data-key="lotomania" aria-pressed="false">Lotomania</button>
+          <button class="game-btn" data-type="supersete" data-key="supersete" aria-pressed="false">Super Sete</button>
+          <button class="game-btn" data-type="timemania" data-key="timemania" aria-pressed="false">Timemania</button>
+        </div>
+        <div class="banner-status">
+          <b id="status">Base ainda não sincronizada</b>
+          <small id="substatus">A sincronização consulta os resultados publicados pela CAIXA.</small>
+          <small id="lastSync">Espelho ainda não publicado</small>
+          <progress id="syncProgress" max="100" value="0" hidden aria-label="Progresso da atualização"></progress>
+        </div>
       </section>
       <nav aria-label="Seções do aplicativo" role="tablist">
         <button

@@ -422,7 +422,13 @@ function selectModality(key) {
   ['type', 'statsType', 'analysisType'].forEach((id) => ($(id).value = t));
   ['scope', 'statsScope', 'analysisScope'].forEach((id) => ($(id).value = key === 'virada' ? 'virada' : 'all'));
   updatePick();
+  syncGameButtons();
   renderDashboard();
+}
+function syncGameButtons() {
+  document
+    .querySelectorAll('.game-btn')
+    .forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.key === selected)));
 }
 function renderAll() {
   renderStatus();
@@ -1140,6 +1146,7 @@ function bind() {
       renderSaved();
     }
   };
+  document.querySelectorAll('.game-btn').forEach((b) => (b.onclick = () => selectModality(b.dataset.key)));
   $('syncLatest').onclick = () => updateLatest();
   $('syncForce').onclick = () => updateLatest({ force: true });
   $('backtest').onclick = backtest;
