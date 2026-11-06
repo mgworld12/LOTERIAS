@@ -1,42 +1,88 @@
 #!/usr/bin/env python3
 """Atualiza o espelho incremental dos resultados CAIXA para o GitHub Pages.
-A fonte é o endpoint JSON não documentado usado pelo Portal Loterias CAIXA.
+
+Fonte: endpoint JSON não documentado usado pelo Portal Loterias CAIXA.
+
+Saída (pasta data/):
+  index.json        resumo pequeno, lido primeiro pelo site
+  <modalidade>.json um arquivo por modalidade (ex.: megasena.json)
+
+Comportamento:
+  * grava checkpoints durante a execução (nada se perde se o job for interrompido);
+  * um concurso com problema é registrado e PULADO, não trava o restante;
+  * lacunas no histórico são detectadas e preenchidas nas execuções seguintes;
+  * respeita um orçamento de tempo (TIME_BUDGET_SECONDS) e encerra de forma limpa;
+  * modalidades com menos concursos pendentes são processadas primeiro.
 """
 from __future__ import annotations
-import json, os, re, sys, time
+
+import json
+import os
+import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 API = "https://servicebus2.caixa.gov.br/portaldeloterias/api/"
-OUT = Path("data/results.json")
+DATA = Path("data")
+INDEX = DATA / "index.json"
+LEGACY = DATA / "results.json"  # formato antigo (schema 1), migrado automaticamente
+SCHEMA = 2
+SOURCE = "Portal Loterias CAIXA (endpoint JSON não documentado)"
+
+TIME_BUDGET = float(os.environ.get("TIME_BUDGET_SECONDS", 5 * 3600 + 20 * 60))
+SAVE_EVERY = 100  # concursos novos entre checkpoints
+MAX_CONSECUTIVE_FAILURES = 12  # indica bloqueio/instabilidade: aborta a modalidade
+PAUSE = 0.2  # segundos entre requisições
+
+# slug -> (quantidade de dezenas, máximo, aceita zero)
 MODALITIES = {
-    "megasena": ("megasena", 6, 60, False),
-    "lotofacil": ("lotofacil", 15, 25, False),
-    "quina": ("quina", 5, 80, False),
-    "lotomania": ("lotomania", 20, 99, True),
-    "duplasena": ("duplasena", 6, 50, False),
-    "diadesorte": ("diadesorte", 7, 31, False),
-    "timemania": ("timemania", 7, 80, False),
-    "supersete": ("supersete", 7, 9, False),
-    "maismilionaria": ("maismilionaria", 6, 50, False),
+    "megasena": (6, 60, False),
+    "lotofacil": (15, 25, False),
+    "quina": (5, 80, False),
+    "lotomania": (20, 99, True),
+    "duplasena": (6, 50, False),
+    "diadesorte": (7, 31, False),
+    "timemania": (7, 80, False),
+    "supersete": (7, 9, False),
+    "maismilionaria": (6, 50, False),
 }
-MONTHS = {name.lower(): i for i, name in enumerate(("Janeiro Fevereiro Março Abril Maio Junho Julho Agosto Setembro Outubro Novembro Dezembro").split(), 1)}
+MONTHS = {
+    name.lower(): i
+    for i, name in enumerate(
+        "Janeiro Fevereiro Março Abril Maio Junho Julho Agosto Setembro Outubro Novembro Dezembro".split(), 1
+    )
+}
+
+
+class NotFound(Exception):
+    """Concurso inexistente na API (HTTP 404): não adianta tentar de novo."""
 
 
 def get_json(url: str):
-    req = Request(url, headers={"Accept": "application/json, text/plain, */*", "User-Agent": "Mozilla/5.0 (compatible; LoteriasCaixaGitHubPages/1.0)", "Referer": "https://loterias.caixa.gov.br/"})
+    req = Request(
+        url,
+        headers={
+            "Accept": "application/json, text/plain, */*",
+            "User-Agent": "Mozilla/5.0 (compatible; LoteriasCaixaGitHubPages/2.0)",
+            "Referer": "https://loterias.caixa.gov.br/",
+        },
+    )
     last = None
     for attempt in range(4):
         try:
             with urlopen(req, timeout=30) as response:
-                if response.status != 200:
-                    raise RuntimeError(f"HTTP {response.status}")
                 return json.loads(response.read().decode("utf-8-sig"))
-        except Exception as exc:
+        except HTTPError as exc:
+            if exc.code == 404:
+                raise NotFound(url) from exc
             last = exc
-            if attempt < 3:
-                time.sleep(2 ** attempt)
+        except Exception as exc:  # rede, JSON inválido, timeout…
+            last = exc
+        if attempt < 3:
+            time.sleep(2**attempt)
     raise RuntimeError(f"Falha ao consultar CAIXA: {last}")
 
 
@@ -60,7 +106,10 @@ def month_number(value):
 
 
 def normalize(kind, raw):
-    slug, count, maximum, zero = MODALITIES[kind]
+    """Valida e converte um concurso. As dezenas principais são obrigatórias;
+    campos extras ausentes (time, mês, trevos, 2º sorteio) marcam o registro
+    como incompleto em vez de impedir a leitura do restante do histórico."""
+    count, maximum, zero = MODALITIES[kind]
     contest = int(raw.get("numero") or raw.get("numeroConcurso") or raw.get("concurso") or 0)
     date_raw = str(raw.get("dataApuracao") or "")
     try:
@@ -74,90 +123,206 @@ def normalize(kind, raw):
     if any(n < low or n > maximum for n in nums):
         raise ValueError(f"Dezena fora do intervalo em {kind} {contest}")
     item = {"type": kind, "contest": contest, "date": date, "numbers": nums}
-    # Mega da Virada é um concurso especial da Mega-Sena, não uma modalidade
-    # independente. Marcar explicitamente os registros para permitir análises
-    # históricas próprias sem duplicar concursos.
+    incomplete = False
+
     if kind == "megasena":
-        special_text = " ".join(str(raw.get(k) or "") for k in (
-            "nomeConcursoEspecial", "descricaoConcurso", "nomeEspecial",
-            "concursoEspecial", "descricao"
-        )).casefold()
-        is_mega_virada = (
-            "mega da virada" in special_text
-            or (date[5:] == "12-31")
-        )
-        if is_mega_virada:
+        # Mega da Virada: concurso especial da Mega-Sena, não uma modalidade própria.
+        special = " ".join(
+            str(raw.get(k) or "")
+            for k in ("nomeConcursoEspecial", "descricaoConcurso", "nomeEspecial", "concursoEspecial", "descricao")
+        ).casefold()
+        if "mega da virada" in special or date[5:] == "12-31":
             item["specialDraw"] = "mega-da-virada"
-    if kind == "duplasena":
-        second = numbers({"x": raw.get("listaDezenasSegundoSorteio") or raw.get("dezenasSegundoSorteio") or raw.get("listaDezenas2")}, "x")
-        if len(second) != 6 or len(set(second)) != 6 or any(n < 1 or n > 50 for n in second):
-            raise ValueError(f"Segundo sorteio incompleto na Dupla Sena {contest}")
-        item["secondNumbers"] = second
+    elif kind == "duplasena":
+        second = numbers(
+            {"x": raw.get("listaDezenasSegundoSorteio") or raw.get("dezenasSegundoSorteio") or raw.get("listaDezenas2")},
+            "x",
+        )
+        if len(second) == 6 and len(set(second)) == 6 and all(1 <= n <= 50 for n in second):
+            item["secondNumbers"] = second
+        else:
+            incomplete = True
     elif kind == "maismilionaria":
-        trevos_raw = raw.get("trevosSorteados") or raw.get("listaTrevosSorteados") or raw.get("listaTrevos") or raw.get("trevos") or []
-        trevos = [int(re.sub(r"\D", "", str(x.get("numero") or x.get("trevo") or x.get("numeroTrevo") or "" if isinstance(x, dict) else x))) for x in trevos_raw]
+        raw_t = raw.get("trevosSorteados") or raw.get("listaTrevosSorteados") or raw.get("listaTrevos") or raw.get("trevos") or []
+        trevos = []
+        for x in raw_t:
+            v = (x.get("numero") or x.get("trevo") or x.get("numeroTrevo") or "") if isinstance(x, dict) else x
+            digits = re.sub(r"\D", "", str(v))
+            if digits:
+                trevos.append(int(digits))
         trevos = [n for n in trevos if 1 <= n <= 6]
-        if len(trevos) != 2 or len(set(trevos)) != 2:
-            raise ValueError(f"Trevos incompletos na +Milionária {contest}")
-        item["trevos"] = trevos
+        if len(trevos) == 2 and len(set(trevos)) == 2:
+            item["trevos"] = trevos
+        else:
+            incomplete = True
     elif kind == "diadesorte":
         month = month_number(raw.get("mesSorte") or raw.get("mesSorteado") or raw.get("mes") or raw.get("nomeTimeCoracaoMesSorte"))
-        if not month:
-            raise ValueError(f"Mês da sorte ausente no Dia de Sorte {contest}")
-        item["month"] = month
+        if month:
+            item["month"] = month
+        else:
+            incomplete = True
     elif kind == "timemania":
         team = str(raw.get("nomeTimeCoracao") or raw.get("timeCoracao") or raw.get("timeDoCoracao") or raw.get("nomeTimeCoracaoMesSorte") or "").strip()
-        if not team:
-            raise ValueError(f"Time do coração ausente na Timemania {contest}")
-        item["team"] = team
+        if team:
+            item["team"] = team
+        else:
+            incomplete = True
     elif kind == "supersete":
         item["columns"] = nums[:]
+    if incomplete:
+        item["incomplete"] = True
     return item
 
 
-def main():
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    old = { (d["type"], int(d["contest"])): d for d in json.loads(OUT.read_text("utf-8")).get("draws", []) } if OUT.exists() else {}
-    # Retrocompatibilidade: identifica também as edições já presentes no
-    # espelho antes da inclusão do marcador especial.
-    for draw in old.values():
-        if draw.get("type") == "megasena" and str(draw.get("date", "")).endswith("-12-31"):
-            draw["specialDraw"] = "mega-da-virada"
-    added = 0
-    errors = []
-    for kind, (slug, *_rest) in MODALITIES.items():
+# ---------------------------------------------------------------- armazenamento
+def dumps(obj) -> str:
+    return json.dumps(obj, ensure_ascii=False, separators=(",", ":")) + "\n"
+
+
+def load_store():
+    """Lê os arquivos por modalidade (e migra o results.json antigo, se houver)."""
+    store = {kind: {} for kind in MODALITIES}
+    for kind in MODALITIES:
+        path = DATA / f"{kind}.json"
+        if path.exists():
+            for d in json.loads(path.read_text("utf-8")).get("draws", []):
+                store[kind][int(d["contest"])] = d
+    if LEGACY.exists():
         try:
-            latest_raw = get_json(API + slug)
-            latest = normalize(kind, latest_raw)
-            existing = sorted(c for t, c in old if t == kind)
-            start = (existing[-1] + 1) if existing else 1
-            if start > latest["contest"]:
-                continue
-            for contest in range(start, latest["contest"] + 1):
-                raw = latest_raw if contest == latest["contest"] else get_json(f"{API}{slug}/{contest}")
-                item = normalize(kind, raw)
-                if item["contest"] != contest:
-                    raise ValueError(f"Resposta retornou concurso {item['contest']} ao solicitar {contest}")
-                old[(kind, contest)] = item
-                added += 1
-                time.sleep(0.25)
+            for d in json.loads(LEGACY.read_text("utf-8")).get("draws", []):
+                if d.get("type") in store:
+                    store[d["type"]].setdefault(int(d["contest"]), d)
+        except (ValueError, OSError):
+            pass
+    for contests in store.values():  # retrocompatibilidade do marcador da Mega da Virada
+        for d in contests.values():
+            if d.get("type") == "megasena" and str(d.get("date", "")).endswith("-12-31"):
+                d["specialDraw"] = "mega-da-virada"
+    return store
+
+
+def write_if_changed(path: Path, text: str) -> bool:
+    if path.exists() and path.read_text("utf-8") == text:
+        return False
+    path.write_text(text, "utf-8")
+    return True
+
+
+def save_all(store, tops, errors, prev_index):
+    """Grava arquivos de modalidade alterados e o index.json. Retorna True se algo mudou."""
+    DATA.mkdir(parents=True, exist_ok=True)
+    now = datetime.now(timezone.utc).isoformat()
+    # compara sempre com o que está em disco (um checkpoint anterior pode ter mudado o arquivo)
+    prev_index = json.loads(INDEX.read_text("utf-8")) if INDEX.exists() else prev_index
+    prev_mods = prev_index.get("modalities", {})
+    mods, changed = {}, False
+    for kind, contests in store.items():
+        if not contests:
+            continue
+        ordered = [contests[c] for c in sorted(contests)]
+        file = f"{kind}.json"
+        file_changed = write_if_changed(DATA / file, dumps({"schemaVersion": SCHEMA, "type": kind, "draws": ordered}))
+        top = tops.get(kind) or ordered[-1]["contest"]
+        prev = prev_mods.get(kind, {})
+        mods[kind] = {
+            "file": file,
+            "count": len(ordered),
+            "latest": ordered[-1]["contest"],
+            "latestDate": ordered[-1]["date"],
+            "missing": max(0, top - len(ordered)),
+            "incomplete": sum(1 for d in ordered if d.get("incomplete")),
+            "updatedAt": now if file_changed or not prev.get("updatedAt") else prev["updatedAt"],
+        }
+        changed = changed or file_changed
+    total_missing = sum(m["missing"] for m in mods.values())
+    base = {
+        "schemaVersion": SCHEMA,
+        "source": SOURCE,
+        "status": "ok" if not errors and not total_missing and len(mods) == len(MODALITIES) else "partial",
+        "errors": sorted(set(errors)),
+        "modalities": mods,
+    }
+    prev_cmp = {k: prev_index.get(k) for k in base}
+    # generatedAt só muda quando algo muda: evita commit vazio a cada execução.
+    if changed or prev_cmp != base or not prev_index.get("generatedAt"):
+        base["generatedAt"] = now if (changed or not prev_index.get("generatedAt")) else prev_index["generatedAt"]
+        index_changed = write_if_changed(INDEX, dumps(base))
+        changed = changed or index_changed
+    return changed
+
+
+# ---------------------------------------------------------------- sincronização
+def sync_kind(kind, contests, top, deadline, checkpoint, errors):
+    missing = [c for c in range(1, top + 1) if c not in contests]
+    if not missing:
+        return 0
+    added = since_save = fails = 0
+    failed = []
+    for i, contest in enumerate(missing):
+        if time.monotonic() > deadline:
+            errors.append(f"{kind}: tempo esgotado; restam {len(missing) - i} concursos para a próxima execução")
+            break
+        try:
+            item = normalize(kind, get_json(f"{API}{kind}/{contest}"))
+            if item["contest"] != contest:
+                raise ValueError(f"resposta trouxe o concurso {item['contest']}")
+            contests[contest] = item
+            added += 1
+            since_save += 1
+            fails = 0
+        except NotFound:
+            failed.append(contest)
+        except Exception as exc:
+            failed.append(contest)
+            fails += 1
+            print(f"::warning::{kind} {contest}: {exc}")
+            if fails >= MAX_CONSECUTIVE_FAILURES:
+                errors.append(f"{kind}: {fails} falhas seguidas (última no concurso {contest}: {exc}); modalidade pausada")
+                break
+        if since_save >= SAVE_EVERY:
+            checkpoint()
+            since_save = 0
+        time.sleep(PAUSE)
+    if failed:
+        sample = ", ".join(map(str, failed[:8])) + ("…" if len(failed) > 8 else "")
+        errors.append(f"{kind}: {len(failed)} concurso(s) não confirmado(s) nesta execução ({sample})")
+    return added
+
+
+def main():
+    deadline = time.monotonic() + TIME_BUDGET
+    DATA.mkdir(parents=True, exist_ok=True)
+    prev_index = json.loads(INDEX.read_text("utf-8")) if INDEX.exists() else {}
+    store = load_store()
+    errors, tops, latest_raw = [], {}, {}
+
+    # Fase 1: descobrir o último concurso de cada modalidade.
+    for kind in MODALITIES:
+        try:
+            raw = get_json(API + kind)
+            item = normalize(kind, raw)
+            tops[kind] = item["contest"]
+            store[kind][item["contest"]] = item
         except Exception as exc:
             errors.append(f"{kind}: {exc}")
             print(f"::warning::{kind}: {exc}")
-    if not old:
-        raise RuntimeError("Nenhum resultado oficial foi confirmado; arquivo não será criado.")
-    payload = {
-        "schemaVersion": 1,
-        "source": "Portal Loterias CAIXA (endpoint JSON não documentado)",
-        "generatedAt": datetime.now(timezone.utc).isoformat(),
-        "status": "partial" if errors else "ok",
-        "errors": errors,
-        "draws": sorted(old.values(), key=lambda d: (d["type"], d["contest"])),
-    }
-    OUT.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
-    print(f"Resultados confirmados adicionados: {added}; total no espelho: {len(old)}")
-    if errors:
-        print("::warning::Atualização parcial. Consulte errors em data/results.json")
+
+    if not any(store.values()):
+        raise RuntimeError("Nenhum resultado oficial foi confirmado; nada será gravado.")
+
+    def checkpoint():
+        save_all(store, tops, list(errors), prev_index)
+
+    # Fase 2: preencher pendências, das modalidades menores para as maiores.
+    order = sorted(tops, key=lambda k: tops[k] - len(store[k]))
+    total = 0
+    for kind in order:
+        total += sync_kind(kind, store[kind], tops[kind], deadline, checkpoint, errors)
+        checkpoint()
+    save_all(store, tops, errors, prev_index)
+    print(f"Concursos adicionados: {total}; total no espelho: {sum(len(v) for v in store.values())}")
+    for e in errors:
+        print(f"::warning::{e}")
 
 
 if __name__ == "__main__":
