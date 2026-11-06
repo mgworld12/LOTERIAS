@@ -252,75 +252,75 @@ def save_all(store, tops, errors, prev_index):
 
 
 # ---------------------------------------------------------------- sincronização
-def sync_kind(kind, contests, top, deadline, checkpoint, errors):
-    missing = [c for c in range(1, top + 1) if c not in contests]
-    if not missing:
-        return 0
-    added = since_save = fails = 0
-    failed = []
-    for i, contest in enumerate(missing):
-        if time.monotonic() > deadline:
-            errors.append(f"{kind}: tempo esgotado; restam {len(missing) - i} concursos para a próxima execução")
-            break
-        try:
-            item = normalize(kind, get_json(f"{API}{kind}/{contest}"))
-            if item["contest"] != contest:
-                raise ValueError(f"resposta trouxe o concurso {item['contest']}")
-            contests[contest] = item
-            added += 1
-            since_save += 1
-            fails = 0
-        except NotFound:
-            failed.append(contest)
-        except Exception as exc:
-            failed.append(contest)
-            fails += 1
-            print(f"::warning::{kind} {contest}: {exc}")
-            if fails >= MAX_CONSECUTIVE_FAILURES:
-                errors.append(f"{kind}: {fails} falhas seguidas (última no concurso {contest}: {exc}); modalidade pausada")
-                break
-        if since_save >= SAVE_EVERY:
-            checkpoint()
-            since_save = 0
-        time.sleep(PAUSE)
-    if failed:
-        sample = ", ".join(map(str, failed[:8])) + ("…" if len(failed) > 8 else "")
-        errors.append(f"{kind}: {len(failed)} concurso(s) não confirmado(s) nesta execução ({sample})")
-    return added
+QUOTA = 120  # concursos por modalidade a cada passada (todas avançam em paralelo)
 
 
 def main():
+    """Busca os concursos que faltam, do MAIS RECENTE para o mais antigo, em passadas
+    que alternam entre as modalidades. Assim, mesmo uma rodada curta já deixa todas as
+    modalidades utilizáveis (com os concursos mais recentes) e o site pode publicar cedo."""
     deadline = time.monotonic() + TIME_BUDGET
     DATA.mkdir(parents=True, exist_ok=True)
     prev_index = json.loads(INDEX.read_text("utf-8")) if INDEX.exists() else {}
     store = load_store()
-    errors, tops, latest_raw = [], {}, {}
+    errors, tops = [], {}
 
     # Fase 1: descobrir o último concurso de cada modalidade.
     for kind in MODALITIES:
         try:
-            raw = get_json(API + kind)
-            item = normalize(kind, raw)
+            item = normalize(kind, get_json(API + kind))
             tops[kind] = item["contest"]
             store[kind][item["contest"]] = item
         except Exception as exc:
             errors.append(f"{kind}: {exc}")
             print(f"::warning::{kind}: {exc}")
-
     if not any(store.values()):
         raise RuntimeError("Nenhum resultado oficial foi confirmado; nada será gravado.")
 
     def checkpoint():
         save_all(store, tops, list(errors), prev_index)
 
-    # Fase 2: preencher pendências, das modalidades menores para as maiores.
-    order = sorted(tops, key=lambda k: tops[k] - len(store[k]))
-    total = 0
-    for kind in order:
-        total += sync_kind(kind, store[kind], tops[kind], deadline, checkpoint, errors)
-        checkpoint()
+    # Fase 2: preencher pendências, newest-first, alternando modalidades.
+    pending = {k: [c for c in range(tops[k], 0, -1) if c not in store[k]] for k in tops}
+    fails = {k: 0 for k in tops}
+    failed = {k: [] for k in tops}
+    paused = set()
+    added = 0
+    active = lambda: [k for k in sorted(tops, key=lambda k: len(pending[k])) if pending[k] and k not in paused]
+    while active() and time.monotonic() < deadline:
+        for kind in active():
+            for _ in range(QUOTA):
+                if not pending[kind] or time.monotonic() >= deadline:
+                    break
+                contest = pending[kind].pop(0)
+                try:
+                    item = normalize(kind, get_json(f"{API}{kind}/{contest}"))
+                    if item["contest"] != contest:
+                        raise ValueError(f"resposta trouxe o concurso {item['contest']}")
+                    store[kind][contest] = item
+                    added += 1
+                    fails[kind] = 0
+                except NotFound:
+                    failed[kind].append(contest)
+                except Exception as exc:
+                    failed[kind].append(contest)
+                    fails[kind] += 1
+                    print(f"::warning::{kind} {contest}: {exc}")
+                    if fails[kind] >= MAX_CONSECUTIVE_FAILURES:
+                        errors.append(
+                            f"{kind}: {fails[kind]} falhas seguidas (último concurso {contest}: {exc}); modalidade pausada"
+                        )
+                        paused.add(kind)
+                        break
+                time.sleep(PAUSE)
+            checkpoint()
+    for kind, lst in failed.items():
+        if lst:
+            sample = ", ".join(map(str, sorted(lst)[:8])) + ("…" if len(lst) > 8 else "")
+            errors.append(f"{kind}: {len(lst)} concurso(s) não confirmado(s) nesta execução ({sample})")
     save_all(store, tops, errors, prev_index)
-    print(f"Concursos adicionados: {total}; total no espelho: {sum(len(v) for v in store.values())}")
+    left = sum(len(v) for v in pending.values())
+    print(f"Concursos adicionados: {added}; ainda pendentes: {left}; total no espelho: {sum(len(v) for v in store.values())}")
     for e in errors:
         print(f"::warning::{e}")
 
