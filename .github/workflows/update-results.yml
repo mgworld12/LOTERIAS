@@ -24,28 +24,36 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.x"
-      - name: Consultar e validar resultados oficiais
-        run: python scripts/update_caixa.py
-        continue-on-error: true
-        timeout-minutes: 335
-      - name: Publicar espelho atualizado
-        id: commit
-        if: always()
-        run: |
-          if git diff --quiet -- data/results.json; then
-            echo "Nenhum resultado novo confirmado."
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/results.json
-          git commit -m "Atualiza resultados das Loterias CAIXA"
-          git pull --rebase
-          git push
-          echo "changed=true" >> "$GITHUB_OUTPUT"
-      - name: Republicar o site com os dados novos
-        if: always() && steps.commit.outputs.changed == 'true'
+      # Roda em RODADAS CURTAS: ao fim de cada uma, grava, faz commit e republica o site.
+      # Assim o app já fica utilizável (com os concursos mais recentes) na primeira rodada,
+      # e o histórico antigo vai sendo completado sem esperar o fim de tudo.
+      - name: Atualizar em rodadas e publicar a cada rodada
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run pages.yml --ref "${GITHUB_REF_NAME}"
+          ROUND_SECONDS: "600"
+          MAX_TOTAL_SECONDS: "19200"
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          start=$(date +%s)
+          round=0
+          while true; do
+            round=$((round+1))
+            left=$(( MAX_TOTAL_SECONDS - ($(date +%s) - start) ))
+            [ "$left" -le 60 ] && echo "Limite de tempo do job; continua na próxima execução." && break
+            budget=$(( left < ROUND_SECONDS ? left : ROUND_SECONDS ))
+            echo "=== Rodada $round (até ${budget}s) ==="
+            TIME_BUDGET_SECONDS=$budget python scripts/update_caixa.py || echo "Rodada terminou com erro (dados já gravados são mantidos)."
+            if git status --porcelain -- data | grep -q .; then
+              git add data
+              git commit -m "Atualiza resultados das Loterias CAIXA (rodada $round)"
+              git pull --rebase
+              git push
+              gh workflow run pages.yml --ref "${GITHUB_REF_NAME}"
+            else
+              echo "Sem mudanças nesta rodada: fim (histórico completo ou servidor sem novidades)."
+              break
+            fi
+            status=$(python -c "import json;print(json.load(open(\"data/index.json\")).get(\"status\"))")
+            [ "$status" = "ok" ] && echo "Histórico completo." && break
+          done
