@@ -572,15 +572,7 @@ nav .tab[aria-selected='true'] {
 .rank {
   background: color-mix(in srgb, #238b91 calc(var(--heat, 0) * 26%), transparent);
 }
-.mod-card {
-  border-top: 4px solid #176b87;
-}
-.mod-card:nth-child(3n + 2) {
-  border-top-color: #1b9a88;
-}
-.mod-card:nth-child(3n) {
-  border-top-color: #f2b134;
-}
+
 .ball {
   box-shadow: inset 0 -2px 0 #0002;
 }
@@ -691,4 +683,104 @@ nav .tab[aria-selected='true'] {
 }
 [hidden] {
   display: none !important;
+}
+
+/* ===== Cores por modalidade (inspiradas nas cores usadas pela CAIXA) =====
+   --c: cor do jogo · --d: tom escuro (linha superior, números) · --tint: fundo claro ao passar o mouse/selecionar */
+[data-type] {
+  --c: #176b87;
+  --d: #0f4a5f;
+  --tint: color-mix(in srgb, var(--c) 14%, #fff);
+  --ball: color-mix(in srgb, var(--c) 18%, #fff);
+}
+[data-type='megasena'] {
+  --c: #209869;
+  --d: #136548;
+}
+[data-type='lotofacil'] {
+  --c: #930089;
+  --d: #64005d;
+}
+[data-type='quina'] {
+  --c: #260085;
+  --d: #1a005c;
+}
+[data-type='lotomania'] {
+  --c: #f78100;
+  --d: #a85600;
+}
+[data-type='duplasena'] {
+  --c: #a61324;
+  --d: #770d19;
+}
+[data-type='diadesorte'] {
+  --c: #cb852b;
+  --d: #8c5a1a;
+}
+[data-type='timemania'] {
+  --c: #00c13d;
+  --d: #007f28;
+}
+[data-type='supersete'] {
+  --c: #a8cf45;
+  --d: #6a8a1f;
+}
+[data-type='maismilionaria'] {
+  --c: #27368f;
+  --d: #1a2563;
+}
+.mod-card,
+.game {
+  border-top: 5px solid var(--d);
+  transition: background-color 0.15s;
+}
+.mod-card {
+  cursor: pointer;
+}
+.mod-card:hover,
+.mod-card:focus-visible,
+.mod-card[aria-pressed='true'],
+.game:hover {
+  background: var(--tint);
+  border-top-color: var(--d);
+}
+.mod-card[aria-pressed='true'] {
+  box-shadow: 0 0 0 2px var(--c) inset;
+}
+.mod-card strong,
+.game .gamehead {
+  color: var(--d);
+}
+.game .ball,
+.ranking[data-type] .rank strong {
+  background: var(--ball);
+  color: var(--d);
+}
+.ranking[data-type] .rank .bar i {
+  background: var(--c);
+}
+.ranking[data-type] .rank {
+  background: color-mix(in srgb, var(--c) calc(var(--heat, 0) * 24%), transparent);
+}
+#syncProgress {
+  width: 100%;
+  height: 8px;
+  margin-top: 10px;
+  accent-color: #1b9a88;
+}
+@media (prefers-color-scheme: dark) {
+  [data-type] {
+    --tint: color-mix(in srgb, var(--c) 26%, #12232d);
+    --ball: color-mix(in srgb, var(--c) 35%, #12232d);
+  }
+  .mod-card,
+  .game {
+    border-top-color: var(--c);
+  }
+  .mod-card strong,
+  .game .gamehead,
+  .game .ball,
+  .ranking[data-type] .rank strong {
+    color: color-mix(in srgb, var(--c) 45%, #fff);
+  }
 }

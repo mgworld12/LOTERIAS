@@ -247,6 +247,9 @@ function parseMonth(value) {
   return idx >= 0 ? idx + 1 : NaN;
 }
 // ===== Sincronização com o espelho público (data/index.json + um arquivo por modalidade) =====
+// Regra: a base completa é baixada UMA vez; depois disso o app não consulta a rede sozinho.
+// Só o botão "Atualizar resultados" busca novidades (e só baixa as modalidades que mudaram).
+const tick = () => new Promise((r) => setTimeout(r, 0));
 async function fetchJSON(url) {
   const response = await fetch(url, { cache: 'no-store' });
   if (!response.ok) throw Error(`HTTP ${response.status} ao ler ${url}`);
@@ -255,39 +258,47 @@ async function fetchJSON(url) {
 const isValidDraw = (d) =>
   CFG[d.type] && Number.isInteger(Number(d.contest)) && Number(d.contest) > 0 && Array.isArray(d.numbers);
 
-// Baixa apenas as modalidades que mudaram desde a última visita (ou todas, com force=true).
-async function loadPublishedResults({ force = false } = {}) {
+async function loadPublishedResults({ force = false, onProgress = () => {} } = {}) {
   const index = await fetchJSON('./data/index.json');
   if (index.schemaVersion !== 2 || typeof index.modalities !== 'object')
     throw Error('Formato do espelho público inválido.');
   const stamps = meta().stamps || {},
     newStamps = { ...stamps },
-    failed = [];
-  let loaded = 0;
-  for (const [type, info] of Object.entries(index.modalities)) {
-    if (!CFG[type] || !info?.file) continue;
-    if (!force && stamps[type] === info.updatedAt && allDraws(type).length >= info.count) continue;
+    failed = [],
+    before = draws.length,
+    todo = Object.entries(index.modalities).filter(
+      ([type, info]) =>
+        CFG[type] && info?.file && (force || stamps[type] !== info.updatedAt || allDraws(type).length < info.count),
+    );
+  for (const [i, [type, info]] of todo.entries()) {
+    onProgress(i, todo.length, CFG[type].label);
+    await tick(); // deixa a tela responder entre uma modalidade e outra
     try {
       const payload = await fetchJSON('./data/' + info.file);
       const valid = (payload.draws || []).filter(isValidDraw);
-      await dbPutMany(valid);
+      for (let k = 0; k < valid.length; k += 1000) {
+        await dbPutMany(valid.slice(k, k + 1000));
+        await tick();
+      }
       mergeDraws(valid);
       newStamps[type] = info.updatedAt;
-      loaded += valid.length;
-      logSync(`${CFG[type].label}: ${valid.length.toLocaleString('pt-BR')} concursos carregados.`);
+      logSync(`${CFG[type].label}: ${valid.length.toLocaleString('pt-BR')} concursos verificados.`);
+      renderAll(); // os cartões vão sendo preenchidos enquanto o restante carrega
     } catch (e) {
       failed.push(CFG[type].label);
       logSync(`${CFG[type].label}: falha ao carregar (${e.message}).`);
     }
   }
+  onProgress(todo.length, todo.length, '');
+  const missing = Object.values(index.modalities).reduce((s, m) => s + (m.missing || 0), 0);
   persistMeta({
     publishedAt: index.generatedAt,
     publishedStatus: index.status,
-    publishedErrors: index.errors || [],
+    publishedMissing: missing,
     stamps: newStamps,
     lastVerified: new Date().toISOString(),
   });
-  return { index, loaded, failed };
+  return { index, added: draws.length - before, failed, missing, checked: todo.length };
 }
 function logSync(s) {
   const el = $('syncLog');
@@ -297,29 +308,50 @@ function setSyncState(active) {
   syncing = active;
   $('syncLatest').disabled = active;
   $('syncForce').disabled = active;
+  $('syncLatest').textContent = active ? 'Atualizando…' : 'Atualizar resultados';
+  $('syncProgress').hidden = !active;
 }
 function actionsUrl() {
   const m = location.hostname.match(/^([^.]+)\.github\.io$/),
     repo = location.pathname.split('/')[1];
   return m && repo ? `https://github.com/${m[1]}/${repo}/actions` : null;
 }
+const pendingText = (n) =>
+  `O servidor ainda está completando o histórico (faltam ${n.toLocaleString('pt-BR')} concursos); clique em Atualizar resultados mais tarde para baixar o que já foi publicado.`;
+function idleMessage() {
+  const m = meta();
+  $('substatus').textContent = draws.length
+    ? 'Dados salvos neste dispositivo. O app só busca novidades quando você clica em Atualizar resultados.' +
+      (m.publishedMissing ? ' ' + pendingText(m.publishedMissing) : '')
+    : 'A base ainda não foi baixada.';
+}
+// O app continua utilizável durante a atualização: nada aqui bloqueia a interface.
 async function updateLatest(opts = {}) {
   if (syncing) return;
   setSyncState(true);
+  $('syncProgress').removeAttribute('value'); // barra indeterminada até saber quantas modalidades
+  $('substatus').textContent = 'Atualizando em segundo plano… você pode continuar usando o app.';
   try {
-    const { index, loaded, failed } = await loadPublishedResults(opts);
+    const { added, failed, missing, checked, index } = await loadPublishedResults({
+      ...opts,
+      onProgress: (i, n, label) => {
+        if (n) $('syncProgress').value = Math.round((100 * i) / n);
+        if (label) $('substatus').textContent = `Atualizando ${label} (${i + 1} de ${n})… pode continuar usando o app.`;
+      },
+    });
     renderAll();
-    const total = draws.length;
-    if (!total) {
+    if (!draws.length) {
       $('substatus').textContent = 'O espelho público ainda não contém resultados.';
       logSync('Espelho vazio: execute o workflow “Atualizar resultados CAIXA” no GitHub Actions.');
     } else {
-      const missing = Object.values(index.modalities || {}).reduce((s, m) => s + (m.missing || 0), 0);
-      $('substatus').textContent =
-        index.status === 'partial' || missing
-          ? `Histórico em carga: faltam ${missing.toLocaleString('pt-BR')} concurso(s). O atualizador continua nas próximas execuções.`
-          : 'Resultados publicados pelo processo automático do GitHub Actions.';
-      if (!loaded && !failed.length) logSync('Dados já atualizados neste dispositivo.');
+      $('substatus').textContent = added
+        ? `${added.toLocaleString('pt-BR')} novo(s) resultado(s) baixado(s).`
+        : checked
+          ? 'Dados verificados; nenhum concurso novo.'
+          : 'Você já está com os resultados mais recentes publicados.';
+      if (missing) $('substatus').textContent += ' ' + pendingText(missing);
+      if (index.status === 'partial' && !missing)
+        $('substatus').textContent += ' (O servidor registrou avisos; veja a aba Base de dados.)';
     }
     if (failed.length) $('substatus').textContent += ` Falha ao carregar: ${failed.join(', ')}.`;
   } catch (e) {
@@ -353,10 +385,11 @@ function renderStatus() {
     by +
     (megaVirada ? ` · Mega da Virada: ${megaVirada} edições` : ' · Mega da Virada: incluída no histórico da Mega-Sena');
 }
+let selected = ''; // modalidade escolhida no painel (ou 'virada')
 function viradaCard() {
   const v = allDraws('megasena').filter(isVirada),
     last = v[v.length - 1];
-  return `<article class="mod-card"><b>Mega da Virada</b><strong>${v.length.toLocaleString('pt-BR')}</strong><small>edições no histórico da Mega-Sena</small><small>Última: ${last ? `nº ${last.contest} · ${fmtDate(last.date)}` : 'não disponível'}</small></article>`;
+  return `<article class="mod-card" data-type="megasena" data-scope="virada" tabindex="0" role="button" aria-pressed="${selected === 'virada'}"><b>Mega da Virada</b><strong>${v.length.toLocaleString('pt-BR')}</strong><small>edições no histórico da Mega-Sena</small><small>Última: ${last ? `nº ${last.contest} · ${fmtDate(last.date)}` : 'não disponível'}</small></article>`;
 }
 function renderDashboard() {
   const m = meta();
@@ -365,12 +398,31 @@ function renderDashboard() {
       .map((t) => {
         const a = allDraws(t),
           last = a[a.length - 1];
-        return `<article class="mod-card"><b>${CFG[t].label}</b><strong>${a.length.toLocaleString('pt-BR')}</strong><small>concursos armazenados</small><small>Último: ${last ? `nº ${last.contest} · ${fmtDate(last.date)}` : 'não disponível'}</small></article>`;
+        return `<article class="mod-card" data-type="${t}" tabindex="0" role="button" aria-pressed="${selected === t}"><b>${CFG[t].label}</b><strong>${a.length.toLocaleString('pt-BR')}</strong><small>concursos armazenados</small><small>Último: ${last ? `nº ${last.contest} · ${fmtDate(last.date)}` : 'não disponível'}</small></article>`;
       })
       .join('') + viradaCard();
   $('lastSync').textContent = m.publishedAt
     ? 'Dados atualizados em: ' + new Date(m.publishedAt).toLocaleString('pt-BR')
     : 'Espelho ainda não publicado';
+  document.querySelectorAll('#modalityCards .mod-card').forEach((c) => {
+    const pick = () => selectModality(c.dataset.scope === 'virada' ? 'virada' : c.dataset.type);
+    c.onclick = pick;
+    c.onkeydown = (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        pick();
+      }
+    };
+  });
+}
+// Clique em um jogo do painel: marca o cartão e usa a modalidade no Gerador, Estatísticas e Análises.
+function selectModality(key) {
+  selected = key;
+  const t = key === 'virada' ? 'megasena' : key;
+  ['type', 'statsType', 'analysisType'].forEach((id) => ($(id).value = t));
+  ['scope', 'statsScope', 'analysisScope'].forEach((id) => ($(id).value = key === 'virada' ? 'virada' : 'all'));
+  updatePick();
+  renderDashboard();
 }
 function renderAll() {
   renderStatus();
@@ -634,7 +686,7 @@ function gameMarkup(g, i, saved = false) {
   if (g.month) extras += ` · Mês: ${MONTHS[g.month - 1]}`;
   if (g.team) extras += ` · Time: ${esc(g.team)}`;
   if (g.trevos) extras += ` · Trevos: ${g.trevos.map(pad).join(' e ')}`;
-  return `<article class="game"><div class="gamehead"><span>${CFG[g.type].label} · Jogo ${i + 1}</span>${saved ? `<button data-del="${i}">Excluir</button>` : ''}</div><div class="balls">${nums}</div>${g.secondNumbers ? `<small>2º sorteio: ${g.secondNumbers.map(pad).join(' · ')}</small>` : ''}<div class="meta">${esc(g.strategy || 'Salvo')}${extras} · ${g.created ? new Date(g.created).toLocaleString('pt-BR') : ''}</div></article>`;
+  return `<article class="game" data-type="${g.type}"><div class="gamehead"><span>${CFG[g.type].label} · Jogo ${i + 1}</span>${saved ? `<button data-del="${i}">Excluir</button>` : ''}</div><div class="balls">${nums}</div>${g.secondNumbers ? `<small>2º sorteio: ${g.secondNumbers.map(pad).join(' · ')}</small>` : ''}<div class="meta">${esc(g.strategy || 'Salvo')}${extras} · ${g.created ? new Date(g.created).toLocaleString('pt-BR') : ''}</div></article>`;
 }
 function renderGames(id, list, saved = false) {
   const el = $(id);
@@ -672,6 +724,7 @@ function renderStats() {
   $('summary').innerHTML =
     `<div><b>${a.length.toLocaleString('pt-BR')}</b><small>Concursos analisados</small></div><div><b>${cfg.max + 1 * (cfg.zero || cfg.digit ? 1 : 0)}</b><small>Números possíveis</small></div><div><b>${a.length ? Math.max(...freq) : '—'}</b><small>Maior frequência</small></div><div><b>${a.length ? Math.min(...arr.map((n) => freq[n])) : '—'}</b><small>Menor frequência</small></div>`;
   $('ranking').classList.toggle('empty', !a.length);
+  $('ranking').dataset.type = t;
   $('ranking').innerHTML = a.length
     ? arr
         .map(
@@ -1152,14 +1205,12 @@ async function init() {
     renderAll(); // mostra imediatamente o que já está salvo neste dispositivo
     const setOnline = () => ($('connection').textContent = navigator.onLine ? 'Online' : 'Offline');
     setOnline();
-    window.addEventListener('online', () => {
-      setOnline();
-      updateLatest();
-    });
+    window.addEventListener('online', setOnline);
     window.addEventListener('offline', setOnline);
     if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost'))
       navigator.serviceWorker.register('./service-worker.js').catch(() => {});
-    await updateLatest();
+    if (draws.length) idleMessage();
+    else updateLatest(); // primeira visita: baixa a base completa uma única vez, sem bloquear o app
   } catch (e) {
     $('status').textContent = 'Falha ao iniciar armazenamento';
     $('substatus').textContent = e.message;

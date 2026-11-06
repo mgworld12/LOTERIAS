@@ -19,7 +19,8 @@
         ><b>LC</b><span><strong>Loterias CAIXA</strong><small>Análise & Estratégias</small></span></a
       >
       <div class="header-actions">
-        <span id="connection" class="connection" role="status">Verificando…</span><button id="install" hidden>Instalar aplicativo</button>
+        <span id="connection" class="connection" role="status">Verificando…</span
+        ><button id="install" hidden>Instalar aplicativo</button>
       </div>
     </header>
     <main id="inicio">
@@ -33,7 +34,8 @@
         <aside class="status-card">
           <b id="status">Base ainda não sincronizada</b
           ><small id="substatus">A sincronização consulta os resultados publicados pela CAIXA.</small
-          ><small id="lastSync">Espelho ainda não publicado</small>
+          ><small id="lastSync">Espelho ainda não publicado</small
+          ><progress id="syncProgress" max="100" value="0" hidden aria-label="Progresso da atualização"></progress>
         </aside>
       </section>
       <nav aria-label="Seções do aplicativo" role="tablist">
@@ -57,13 +59,45 @@
           data-tab="generator"
         >
           Gerador</button
-        ><button class="tab" role="tab" id="tab-stats" aria-controls="stats" aria-selected="false" tabindex="-1" data-tab="stats">
+        ><button
+          class="tab"
+          role="tab"
+          id="tab-stats"
+          aria-controls="stats"
+          aria-selected="false"
+          tabindex="-1"
+          data-tab="stats"
+        >
           Estatísticas</button
-        ><button class="tab" role="tab" id="tab-analysis" aria-controls="analysis" aria-selected="false" tabindex="-1" data-tab="analysis">
+        ><button
+          class="tab"
+          role="tab"
+          id="tab-analysis"
+          aria-controls="analysis"
+          aria-selected="false"
+          tabindex="-1"
+          data-tab="analysis"
+        >
           Análises especiais</button
-        ><button class="tab" role="tab" id="tab-data" aria-controls="data" aria-selected="false" tabindex="-1" data-tab="data">
+        ><button
+          class="tab"
+          role="tab"
+          id="tab-data"
+          aria-controls="data"
+          aria-selected="false"
+          tabindex="-1"
+          data-tab="data"
+        >
           Base de dados</button
-        ><button class="tab" role="tab" id="tab-saved" aria-controls="saved" aria-selected="false" tabindex="-1" data-tab="saved">
+        ><button
+          class="tab"
+          role="tab"
+          id="tab-saved"
+          aria-controls="saved"
+          aria-selected="false"
+          tabindex="-1"
+          data-tab="saved"
+        >
           Meus jogos
         </button>
       </nav>
@@ -71,19 +105,23 @@
         <div class="section-head">
           <div>
             <h2>Painel geral</h2>
-            <p>Resumo do histórico carregado no navegador, complementado pelo espelho público do GitHub.</p>
+            <p>
+              Resumo do histórico salvo neste dispositivo. Clique em um jogo para usá-lo no Gerador, nas Estatísticas e
+              nas Análises.
+            </p>
           </div>
           <button id="syncLatest" class="primary">Atualizar resultados</button>
         </div>
         <div id="emptyHelp" class="notice help" hidden>
           <strong>Ainda não há resultados publicados.</strong> No GitHub, abra
-          <a id="actionsLink" href="https://github.com" target="_blank" rel="noopener">Actions</a> → <em>Atualizar resultados CAIXA</em> →
-          <em>Run workflow</em>. A primeira carga pode levar horas e continua sozinha nas próximas execuções (a cada 6 horas).
+          <a id="actionsLink" href="https://github.com" target="_blank" rel="noopener">Actions</a> →
+          <em>Atualizar resultados CAIXA</em> → <em>Run workflow</em>. A primeira carga pode levar horas e continua
+          sozinha nas próximas execuções (a cada 6 horas).
         </div>
         <div id="modalityCards" class="modality-grid"></div>
         <div class="notice">
-          <strong>Importante:</strong> frequência, atraso e padrões passados descrevem concursos anteriores. Não preveem resultados nem
-          aumentam a probabilidade matemática de uma combinação.
+          <strong>Importante:</strong> frequência, atraso e padrões passados descrevem concursos anteriores. Não preveem
+          resultados nem aumentam a probabilidade matemática de uma combinação.
         </div>
       </section>
       <section id="generator" class="panel" role="tabpanel" aria-labelledby="tab-generator" tabindex="0">
@@ -118,7 +156,8 @@
               <option value="100">Últimos 100 concursos</option>
               <option value="500">Últimos 500 concursos</option>
             </select></label
-          ><label id="fixedField">Fixos (separados por espaço/vírgula)<input id="fixed" placeholder="Ex.: 03, 12" /></label
+          ><label id="fixedField"
+            >Fixos (separados por espaço/vírgula)<input id="fixed" placeholder="Ex.: 03, 12" /></label
           ><label id="excludedField">Excluídos<input id="excluded" placeholder="Ex.: 08, 19" /></label>
         </div>
         <div id="specialFields" class="fields special-fields"></div>
@@ -164,14 +203,15 @@
               <option value="delay">Maior atraso</option>
               <option value="num">Ordem numérica</option>
             </select></label
-          ><label>Data inicial<input id="statsFrom" type="date" /></label><label>Data final<input id="statsTo" type="date" /></label>
+          ><label>Data inicial<input id="statsFrom" type="date" /></label
+          ><label>Data final<input id="statsTo" type="date" /></label>
         </div>
         <div id="summary" class="summary"></div>
         <div id="ranking" class="ranking empty">Sincronize ou importe o histórico para visualizar.</div>
         <div id="statsDetails" class="stats-details"></div>
         <p class="hint">
-          A frequência teórica média é uma referência descritiva. Sorteios são eventos aleatórios; desvios observados não indicam o que
-          ocorrerá no próximo concurso.
+          A frequência teórica média é uma referência descritiva. Sorteios são eventos aleatórios; desvios observados
+          não indicam o que ocorrerá no próximo concurso.
         </p>
       </section>
       <section id="analysis" class="panel" role="tabpanel" aria-labelledby="tab-analysis" tabindex="0">
@@ -190,19 +230,22 @@
               <option value="100">Últimos 100</option>
               <option value="500">Últimos 500</option>
             </select></label
-          ><label>Data inicial<input id="analysisFrom" type="date" /></label><label>Data final<input id="analysisTo" type="date" /></label>
+          ><label>Data inicial<input id="analysisFrom" type="date" /></label
+          ><label>Data final<input id="analysisTo" type="date" /></label>
         </div>
         <div id="analysisOutput" class="analysis-grid"></div>
         <h3>Conferir jogos contra o histórico</h3>
-        <p class="hint">Compare jogos salvos com concursos anteriores. A comparação é retrospectiva, não uma previsão.</p>
+        <p class="hint">
+          Compare jogos salvos com concursos anteriores. A comparação é retrospectiva, não uma previsão.
+        </p>
         <button id="backtest" class="primary">Executar comparação</button>
         <div id="backtestOutput"></div>
       </section>
       <section id="data" class="panel" role="tabpanel" aria-labelledby="tab-data" tabindex="0">
         <h2>Base de dados e atualização</h2>
         <p>
-          O GitHub Actions consulta a CAIXA a cada 6 horas e publica os resultados na pasta <code>data/</code>. O site baixa apenas as
-          modalidades que mudaram desde a última visita.
+          O GitHub Actions consulta a CAIXA a cada 6 horas e publica os resultados na pasta <code>data/</code>. O site
+          baixa apenas as modalidades que mudaram desde a última visita.
         </p>
         <div class="sync-box">
           <div class="actions"><button id="syncForce" class="primary">Baixar novamente todos os dados</button></div>
@@ -215,13 +258,15 @@
           ><label>Arquivo CSV<input type="file" id="file" accept=".csv,text/csv" /></label>
         </div>
         <p class="hint">
-          CSV aceito: concurso,data,números. Separador vírgula ou ponto e vírgula. Para modalidades especiais, campos extras podem ser
-          importados como colunas adicionais quando identificados.
+          CSV aceito: concurso,data,números. Separador vírgula ou ponto e vírgula. Para modalidades especiais, campos
+          extras podem ser importados como colunas adicionais quando identificados.
         </p>
         <div class="actions">
-          <button id="template">Baixar modelo CSV</button><button id="exportHistory">Exportar histórico armazenado</button
+          <button id="template">Baixar modelo CSV</button
+          ><button id="exportHistory">Exportar histórico armazenado</button
           ><button id="backup">Baixar backup completo</button
-          ><label class="file-button">Restaurar backup<input type="file" id="restore" accept=".json,application/json" /></label
+          ><label class="file-button"
+            >Restaurar backup<input type="file" id="restore" accept=".json,application/json" /></label
           ><button id="wipe" class="danger">Apagar histórico local</button>
         </div>
         <div id="overview" class="overview"></div>
@@ -231,7 +276,8 @@
         <h2>Meus jogos</h2>
         <div id="savedCards" class="cards empty">Nenhum jogo salvo.</div>
         <div class="actions">
-          <button id="exportSaved">Exportar jogos salvos</button><button id="deleteSaved" class="danger">Apagar jogos salvos</button>
+          <button id="exportSaved">Exportar jogos salvos</button
+          ><button id="deleteSaved" class="danger">Apagar jogos salvos</button>
         </div>
       </section>
       <footer>
@@ -240,8 +286,9 @@
           <a href="https://loterias.caixa.gov.br/" target="_blank" rel="noopener">Portal Loterias CAIXA</a>.
         </p>
         <p>
-          Hospedado no GitHub Pages. Os resultados são publicados pelo GitHub Actions; o histórico baixado e os jogos salvos ficam apenas
-          neste navegador. Use <strong>Baixar backup completo</strong> antes de limpar os dados ou trocar de aparelho.
+          Hospedado no GitHub Pages. Os resultados são publicados pelo GitHub Actions; o histórico baixado e os jogos
+          salvos ficam apenas neste navegador. Use <strong>Baixar backup completo</strong> antes de limpar os dados ou
+          trocar de aparelho.
         </p>
       </footer>
     </main>

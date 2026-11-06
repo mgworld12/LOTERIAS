@@ -19,12 +19,17 @@ scripts/update_caixa.py     atualizador incremental
 
 1. Envie todos os arquivos para a raiz do repositório (atenção a `.github/workflows`, `.gitignore` e `.nojekyll`, que começam com ponto).
 2. **Settings → Pages → Source: GitHub Actions**.
-3. **Actions → Atualizar resultados CAIXA → Run workflow**. A primeira carga busca ~23 mil concursos e leva horas; o script grava checkpoints, para sozinho antes do limite de 6 h e **continua de onde parou** na execução seguinte (a cada 6 h, ou manualmente).
-4. Ao terminar, o workflow aciona o `pages.yml` para republicar o site com os dados novos.
+3. **Actions → Atualizar resultados CAIXA → Run workflow**. O workflow trabalha em **rodadas de ~10 minutos**: ao fim de cada rodada ele grava, faz commit e republica o site. Os concursos são buscados **do mais recente para o mais antigo**, alternando as modalidades; por isso o app já fica utilizável na primeira rodada e o histórico antigo vai sendo completado nas seguintes (até ~5 h por execução, depois a cada 6 h).
+
+## Uso no app
+
+- Na primeira visita o app baixa a base publicada **uma única vez**, em segundo plano (você pode usar as abas enquanto isso).
+- Depois disso o app **não consulta a rede sozinho**. Para buscar novidades, clique em **Atualizar resultados**: ele baixa só as modalidades que mudaram.
+- Clicar em um jogo no Painel geral o seleciona (fundo claro na cor do jogo) e o usa no Gerador, Estatísticas e Análises.
 
 ## Como funciona a atualização
 
-- `update_caixa.py` consulta o endpoint JSON do Portal Loterias CAIXA (`servicebus2.caixa.gov.br/portaldeloterias/api/{modalidade}`), **não documentado e sujeito a mudanças**. Se a CAIXA bloquear os servidores do GitHub (HTTP 403/5xx seguidos), a modalidade é pausada e registrada em `errors` no `index.json`.
+- `update_caixa.py` (uma rodada) consulta o endpoint JSON do Portal Loterias CAIXA (`servicebus2.caixa.gov.br/portaldeloterias/api/{modalidade}`), **não documentado e sujeito a mudanças**. Se a CAIXA bloquear os servidores do GitHub (HTTP 403/5xx seguidos), a modalidade é pausada e registrada em `errors` no `index.json`.
 - Concursos com problema são **pulados e registrados**, sem travar os demais; lacunas são preenchidas nas próximas execuções.
 - Concursos sem algum campo extra (time, mês da sorte, trevos, 2º sorteio) ficam marcados com `"incomplete": true` e continuam nas estatísticas das dezenas principais.
 - `index.json` informa, por modalidade, `count`, `latest`, `missing`, `updatedAt`. O site só baixa o arquivo da modalidade cujo `updatedAt` mudou.
