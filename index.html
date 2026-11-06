@@ -1,20 +1,250 @@
 <!doctype html>
 <html lang="pt-BR">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#102f46"><meta name="description" content="Análise estatística, histórico oficial e geração de jogos das Loterias CAIXA.">
-<title>Loterias CAIXA — Análise & Estratégias</title><link rel="manifest" href="manifest.json"><link rel="icon" href="icons/icon.svg" type="image/svg+xml"><link rel="stylesheet" href="style.css">
-</head>
-<body>
-<header><a class="brand" href="#inicio"><b>LC</b><span><strong>Loterias CAIXA</strong><small>Análise & Estratégias</small></span></a><div class="header-actions"><span id="connection" class="connection">Verificando conexão…</span><button id="install" hidden>Instalar aplicativo</button></div></header>
-<main id="inicio">
-<section class="hero"><div><small class="eyebrow">PAINEL DE ANÁLISE</small><h1>Histórico, estatísticas e geração de jogos.</h1><p>Dados de concursos, análises retrospectivas e combinações configuráveis para nove modalidades.</p></div><aside class="status-card"><b id="status">Base ainda não sincronizada</b><small id="substatus">A sincronização consulta os resultados publicados pela CAIXA.</small><small id="lastSync">Última verificação: ainda não realizada</small></aside></section>
-<nav aria-label="Seções do aplicativo"><button class="tab active" data-tab="dashboard">Visão geral</button><button class="tab" data-tab="generator">Gerador</button><button class="tab" data-tab="stats">Estatísticas</button><button class="tab" data-tab="analysis">Análises especiais</button><button class="tab" data-tab="data">Base de dados</button><button class="tab" data-tab="saved">Meus jogos</button></nav>
-<section id="dashboard" class="panel active"><div class="section-head"><div><h2>Painel geral</h2><p>Resumo do histórico carregado no navegador, complementado pelo espelho público do GitHub.</p></div><button id="syncLatest" class="primary">Atualizar resultados</button></div><div id="modalityCards" class="modality-grid"></div><div class="notice"><strong>Importante:</strong> frequência, atraso e padrões passados descrevem concursos anteriores. Não preveem resultados nem aumentam a probabilidade matemática de uma combinação.</div></section>
-<section id="generator" class="panel"><h2>Gerador de jogos</h2><div class="fields"><label>Modalidade<select id="type"></select></label><label>Estratégia<select id="strategy"><option value="random">Aleatória</option><option value="hot">Mais frequentes no período</option><option value="cold">Menos frequentes no período</option><option value="overdue">Mais atrasadas</option><option value="recentHot">Mais frequentes nos últimos concursos</option><option value="recentCold">Menos frequentes nos últimos concursos</option><option value="mixed">Combinação de frequentes e raras</option><option value="balanced">Equilíbrio de pares e ímpares</option><option value="bands">Distribuição por faixas numéricas</option></select></label><label>Quantidade de jogos<input id="qty" type="number" min="1" max="100" value="5"></label><label id="pickField">Quantidade de números<select id="pick"></select></label><label>Janela estatística<select id="period"><option value="all">Histórico completo</option><option value="10">Últimos 10 concursos</option><option value="20">Últimos 20 concursos</option><option value="50">Últimos 50 concursos</option><option value="100">Últimos 100 concursos</option><option value="500">Últimos 500 concursos</option></select></label><label id="fixedField">Fixos (separados por espaço/vírgula)<input id="fixed" placeholder="Ex.: 03, 12"></label><label id="excludedField">Excluídos<input id="excluded" placeholder="Ex.: 08, 19"></label></div>
-<div id="specialFields" class="fields special-fields"></div><div class="checks"><label><input id="avoid" type="checkbox"> Evitar resultado histórico idêntico</label><label><input id="unique" type="checkbox" checked> Não repetir jogos nesta geração</label></div><div class="actions"><button id="generate" class="primary">Gerar jogos</button><button id="clear">Limpar filtros</button><button id="saveAll">Salvar jogos</button><button id="export">Exportar CSV</button></div><p id="msg" class="feedback" role="status"></p><h3>Jogos gerados</h3><div id="generated" class="cards empty">Configure os critérios e gere seus jogos.</div></section>
-<section id="stats" class="panel"><div class="section-head"><div><h2>Estatísticas históricas</h2><p>Frequência, percentual, atraso e distribuição das dezenas.</p></div></div><div class="fields"><label>Modalidade<select id="statsType"></select></label><label>Período<select id="statsPeriod"><option value="all">Histórico completo</option><option value="10">Últimos 10</option><option value="20">Últimos 20</option><option value="50">Últimos 50</option><option value="100">Últimos 100</option><option value="500">Últimos 500</option></select></label><label>Ordenação<select id="sort"><option value="desc">Mais frequentes</option><option value="asc">Menos frequentes</option><option value="delay">Maior atraso</option><option value="num">Ordem numérica</option></select></label><label>Data inicial<input id="statsFrom" type="date"></label><label>Data final<input id="statsTo" type="date"></label></div><div id="summary" class="summary"></div><div id="ranking" class="ranking empty">Sincronize ou importe o histórico para visualizar.</div><div id="statsDetails" class="stats-details"></div><p class="hint">A frequência teórica média é uma referência descritiva. Sorteios são eventos aleatórios; desvios observados não indicam o que ocorrerá no próximo concurso.</p></section>
-<section id="analysis" class="panel"><h2>Análises especiais</h2><div class="fields"><label>Modalidade<select id="analysisType"></select></label><label>Janela<select id="analysisPeriod"><option value="all">Histórico completo</option><option value="50">Últimos 50</option><option value="100">Últimos 100</option><option value="500">Últimos 500</option></select></label><label>Data inicial<input id="analysisFrom" type="date"></label><label>Data final<input id="analysisTo" type="date"></label></div><div id="analysisOutput" class="analysis-grid"></div><h3>Conferir jogos contra o histórico</h3><p class="hint">Compare jogos salvos com concursos anteriores. A comparação é retrospectiva, não uma previsão.</p><button id="backtest" class="primary">Executar comparação</button><div id="backtestOutput"></div></section>
-<section id="data" class="panel"><h2>Base de dados e atualização</h2><p>O GitHub Actions consulta a CAIXA e publica os resultados em data/results.json. Esta página lê o espelho público; a carga histórica é executada no servidor e pode levar bastante tempo.</p><div class="sync-box"><div class="actions"><button id="syncAll" class="primary">Ler histórico publicado das 9 modalidades</button><button id="syncLatest2">Atualizar dados publicados</button><button id="stopSync" class="danger" disabled>Fechar</button></div><div class="progress-wrap"><progress id="progress" max="100" value="0"></progress><span id="progressText">Aguardando leitura do espelho público.</span></div><div id="syncLog" class="sync-log" aria-live="polite"></div></div><hr><h3>Importação e exportação</h3><div class="fields"><label>Modalidade do CSV<select id="importType"></select></label><label>Arquivo CSV<input type="file" id="file" accept=".csv,text/csv"></label></div><p class="hint">CSV aceito: concurso,data,números. Separador vírgula ou ponto e vírgula. Para modalidades especiais, campos extras podem ser importados como colunas adicionais quando identificados.</p><div class="actions"><button id="template">Baixar modelo CSV</button><button id="exportHistory">Exportar histórico armazenado</button><button id="backup">Baixar backup completo</button><label class="file-button">Restaurar backup<input type="file" id="restore" accept=".json,application/json"></label><button id="wipe" class="danger">Apagar histórico local</button></div><div id="overview" class="overview"></div><p id="importMsg" class="feedback"></p></section>
-<section id="saved" class="panel"><h2>Meus jogos</h2><div id="savedCards" class="cards empty">Nenhum jogo salvo.</div><div class="actions"><button id="exportSaved">Exportar jogos salvos</button><button id="deleteSaved" class="danger">Apagar jogos salvos</button></div></section>
-<footer><p>Aplicativo independente, sem vínculo institucional com a CAIXA. Consulte e confira os resultados no <a href="https://loterias.caixa.gov.br/" target="_blank" rel="noopener">Portal Loterias CAIXA</a>.</p><p>Site hospedado no GitHub Pages. Os resultados recentes são publicados automaticamente pelo GitHub Actions; o histórico completo e os jogos salvos também ficam em armazenamento do navegador deste dispositivo. Para atualização automática do espelho, o repositório precisa manter os workflows habilitados.</p></footer>
-</main><script src="script.js"></script></body></html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <meta name="theme-color" content="#102f46" />
+    <meta name="description" content="Análise estatística, histórico oficial e geração de jogos das Loterias CAIXA." />
+    <title>Loterias CAIXA — Análise & Estratégias</title>
+    <link rel="manifest" href="manifest.json" />
+    <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <a class="skip" href="#conteudo">Ir para o conteúdo</a>
+    <header>
+      <a class="brand" href="#inicio"
+        ><b>LC</b><span><strong>Loterias CAIXA</strong><small>Análise & Estratégias</small></span></a
+      >
+      <div class="header-actions">
+        <span id="connection" class="connection" role="status">Verificando…</span><button id="install" hidden>Instalar aplicativo</button>
+      </div>
+    </header>
+    <main id="inicio">
+      <span id="conteudo" tabindex="-1"></span>
+      <section class="hero">
+        <div>
+          <small class="eyebrow">PAINEL DE ANÁLISE</small>
+          <h1>Histórico, estatísticas e geração de jogos.</h1>
+          <p>Dados de concursos, análises retrospectivas e combinações configuráveis para nove modalidades.</p>
+        </div>
+        <aside class="status-card">
+          <b id="status">Base ainda não sincronizada</b
+          ><small id="substatus">A sincronização consulta os resultados publicados pela CAIXA.</small
+          ><small id="lastSync">Espelho ainda não publicado</small>
+        </aside>
+      </section>
+      <nav aria-label="Seções do aplicativo" role="tablist">
+        <button
+          class="tab active"
+          role="tab"
+          id="tab-dashboard"
+          aria-controls="dashboard"
+          aria-selected="true"
+          tabindex="0"
+          data-tab="dashboard"
+        >
+          Visão geral</button
+        ><button
+          class="tab"
+          role="tab"
+          id="tab-generator"
+          aria-controls="generator"
+          aria-selected="false"
+          tabindex="-1"
+          data-tab="generator"
+        >
+          Gerador</button
+        ><button class="tab" role="tab" id="tab-stats" aria-controls="stats" aria-selected="false" tabindex="-1" data-tab="stats">
+          Estatísticas</button
+        ><button class="tab" role="tab" id="tab-analysis" aria-controls="analysis" aria-selected="false" tabindex="-1" data-tab="analysis">
+          Análises especiais</button
+        ><button class="tab" role="tab" id="tab-data" aria-controls="data" aria-selected="false" tabindex="-1" data-tab="data">
+          Base de dados</button
+        ><button class="tab" role="tab" id="tab-saved" aria-controls="saved" aria-selected="false" tabindex="-1" data-tab="saved">
+          Meus jogos
+        </button>
+      </nav>
+      <section id="dashboard" class="panel active" role="tabpanel" aria-labelledby="tab-dashboard" tabindex="0">
+        <div class="section-head">
+          <div>
+            <h2>Painel geral</h2>
+            <p>Resumo do histórico carregado no navegador, complementado pelo espelho público do GitHub.</p>
+          </div>
+          <button id="syncLatest" class="primary">Atualizar resultados</button>
+        </div>
+        <div id="emptyHelp" class="notice help" hidden>
+          <strong>Ainda não há resultados publicados.</strong> No GitHub, abra
+          <a id="actionsLink" href="https://github.com" target="_blank" rel="noopener">Actions</a> → <em>Atualizar resultados CAIXA</em> →
+          <em>Run workflow</em>. A primeira carga pode levar horas e continua sozinha nas próximas execuções (a cada 6 horas).
+        </div>
+        <div id="modalityCards" class="modality-grid"></div>
+        <div class="notice">
+          <strong>Importante:</strong> frequência, atraso e padrões passados descrevem concursos anteriores. Não preveem resultados nem
+          aumentam a probabilidade matemática de uma combinação.
+        </div>
+      </section>
+      <section id="generator" class="panel" role="tabpanel" aria-labelledby="tab-generator" tabindex="0">
+        <h2>Gerador de jogos</h2>
+        <div class="fields">
+          <label>Modalidade<select id="type"></select></label
+          ><label id="scopeField" hidden
+            >Concursos considerados<select id="scope">
+              <option value="all">Todos da Mega-Sena</option>
+              <option value="virada">Somente Mega da Virada</option>
+            </select></label
+          ><label
+            >Estratégia<select id="strategy">
+              <option value="random">Aleatória</option>
+              <option value="hot">Mais frequentes no período</option>
+              <option value="cold">Menos frequentes no período</option>
+              <option value="overdue">Mais atrasadas</option>
+              <option value="recentHot">Mais frequentes nos últimos concursos</option>
+              <option value="recentCold">Menos frequentes nos últimos concursos</option>
+              <option value="mixed">Combinação de frequentes e raras</option>
+              <option value="balanced">Equilíbrio de pares e ímpares</option>
+              <option value="bands">Distribuição por faixas numéricas</option>
+            </select></label
+          ><label>Quantidade de jogos<input id="qty" type="number" min="1" max="100" value="5" /></label
+          ><label id="pickField">Quantidade de números<select id="pick"></select></label
+          ><label
+            >Janela estatística<select id="period">
+              <option value="all">Histórico completo</option>
+              <option value="10">Últimos 10 concursos</option>
+              <option value="20">Últimos 20 concursos</option>
+              <option value="50">Últimos 50 concursos</option>
+              <option value="100">Últimos 100 concursos</option>
+              <option value="500">Últimos 500 concursos</option>
+            </select></label
+          ><label id="fixedField">Fixos (separados por espaço/vírgula)<input id="fixed" placeholder="Ex.: 03, 12" /></label
+          ><label id="excludedField">Excluídos<input id="excluded" placeholder="Ex.: 08, 19" /></label>
+        </div>
+        <div id="specialFields" class="fields special-fields"></div>
+        <div class="checks">
+          <label><input id="avoid" type="checkbox" /> Evitar resultado histórico idêntico</label
+          ><label><input id="unique" type="checkbox" checked /> Não repetir jogos nesta geração</label>
+        </div>
+        <div class="actions">
+          <button id="generate" class="primary">Gerar jogos</button><button id="clear">Limpar filtros</button
+          ><button id="saveAll">Salvar jogos</button><button id="export">Exportar CSV</button>
+        </div>
+        <p id="msg" class="feedback" role="status"></p>
+        <h3>Jogos gerados</h3>
+        <div id="generated" class="cards empty">Configure os critérios e gere seus jogos.</div>
+      </section>
+      <section id="stats" class="panel" role="tabpanel" aria-labelledby="tab-stats" tabindex="0">
+        <div class="section-head">
+          <div>
+            <h2>Estatísticas históricas</h2>
+            <p>Frequência, percentual, atraso e distribuição das dezenas.</p>
+          </div>
+        </div>
+        <div class="fields">
+          <label>Modalidade<select id="statsType"></select></label
+          ><label id="statsScopeField" hidden
+            >Concursos considerados<select id="statsScope">
+              <option value="all">Todos da Mega-Sena</option>
+              <option value="virada">Somente Mega da Virada</option>
+            </select></label
+          ><label
+            >Período<select id="statsPeriod">
+              <option value="all">Histórico completo</option>
+              <option value="10">Últimos 10</option>
+              <option value="20">Últimos 20</option>
+              <option value="50">Últimos 50</option>
+              <option value="100">Últimos 100</option>
+              <option value="500">Últimos 500</option>
+            </select></label
+          ><label
+            >Ordenação<select id="sort">
+              <option value="desc">Mais frequentes</option>
+              <option value="asc">Menos frequentes</option>
+              <option value="delay">Maior atraso</option>
+              <option value="num">Ordem numérica</option>
+            </select></label
+          ><label>Data inicial<input id="statsFrom" type="date" /></label><label>Data final<input id="statsTo" type="date" /></label>
+        </div>
+        <div id="summary" class="summary"></div>
+        <div id="ranking" class="ranking empty">Sincronize ou importe o histórico para visualizar.</div>
+        <div id="statsDetails" class="stats-details"></div>
+        <p class="hint">
+          A frequência teórica média é uma referência descritiva. Sorteios são eventos aleatórios; desvios observados não indicam o que
+          ocorrerá no próximo concurso.
+        </p>
+      </section>
+      <section id="analysis" class="panel" role="tabpanel" aria-labelledby="tab-analysis" tabindex="0">
+        <h2>Análises especiais</h2>
+        <div class="fields">
+          <label>Modalidade<select id="analysisType"></select></label
+          ><label id="analysisScopeField" hidden
+            >Concursos considerados<select id="analysisScope">
+              <option value="all">Todos da Mega-Sena</option>
+              <option value="virada">Somente Mega da Virada</option>
+            </select></label
+          ><label
+            >Janela<select id="analysisPeriod">
+              <option value="all">Histórico completo</option>
+              <option value="50">Últimos 50</option>
+              <option value="100">Últimos 100</option>
+              <option value="500">Últimos 500</option>
+            </select></label
+          ><label>Data inicial<input id="analysisFrom" type="date" /></label><label>Data final<input id="analysisTo" type="date" /></label>
+        </div>
+        <div id="analysisOutput" class="analysis-grid"></div>
+        <h3>Conferir jogos contra o histórico</h3>
+        <p class="hint">Compare jogos salvos com concursos anteriores. A comparação é retrospectiva, não uma previsão.</p>
+        <button id="backtest" class="primary">Executar comparação</button>
+        <div id="backtestOutput"></div>
+      </section>
+      <section id="data" class="panel" role="tabpanel" aria-labelledby="tab-data" tabindex="0">
+        <h2>Base de dados e atualização</h2>
+        <p>
+          O GitHub Actions consulta a CAIXA a cada 6 horas e publica os resultados na pasta <code>data/</code>. O site baixa apenas as
+          modalidades que mudaram desde a última visita.
+        </p>
+        <div class="sync-box">
+          <div class="actions"><button id="syncForce" class="primary">Baixar novamente todos os dados</button></div>
+          <div id="syncLog" class="sync-log" aria-live="polite"></div>
+        </div>
+        <hr />
+        <h3>Importação e exportação</h3>
+        <div class="fields">
+          <label>Modalidade do CSV<select id="importType"></select></label
+          ><label>Arquivo CSV<input type="file" id="file" accept=".csv,text/csv" /></label>
+        </div>
+        <p class="hint">
+          CSV aceito: concurso,data,números. Separador vírgula ou ponto e vírgula. Para modalidades especiais, campos extras podem ser
+          importados como colunas adicionais quando identificados.
+        </p>
+        <div class="actions">
+          <button id="template">Baixar modelo CSV</button><button id="exportHistory">Exportar histórico armazenado</button
+          ><button id="backup">Baixar backup completo</button
+          ><label class="file-button">Restaurar backup<input type="file" id="restore" accept=".json,application/json" /></label
+          ><button id="wipe" class="danger">Apagar histórico local</button>
+        </div>
+        <div id="overview" class="overview"></div>
+        <p id="importMsg" class="feedback"></p>
+      </section>
+      <section id="saved" class="panel" role="tabpanel" aria-labelledby="tab-saved" tabindex="0">
+        <h2>Meus jogos</h2>
+        <div id="savedCards" class="cards empty">Nenhum jogo salvo.</div>
+        <div class="actions">
+          <button id="exportSaved">Exportar jogos salvos</button><button id="deleteSaved" class="danger">Apagar jogos salvos</button>
+        </div>
+      </section>
+      <footer>
+        <p>
+          Aplicativo independente, sem vínculo institucional com a CAIXA. Consulte e confira os resultados no
+          <a href="https://loterias.caixa.gov.br/" target="_blank" rel="noopener">Portal Loterias CAIXA</a>.
+        </p>
+        <p>
+          Hospedado no GitHub Pages. Os resultados são publicados pelo GitHub Actions; o histórico baixado e os jogos salvos ficam apenas
+          neste navegador. Use <strong>Baixar backup completo</strong> antes de limpar os dados ou trocar de aparelho.
+        </p>
+      </footer>
+    </main>
+    <script src="script.js"></script>
+  </body>
+</html>

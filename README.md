@@ -1,80 +1,45 @@
-# Loterias CAIXA — Análise & Estratégias (versão 2)
+# Loterias CAIXA — Análise & Estratégias
 
-Aplicativo web instalável (PWA), com gerador, painel estatístico, análises retrospectivas, conferência de jogos, importação/exportação e base local para nove modalidades: Mega-Sena, Lotofácil, Quina, Lotomania, Dupla Sena, Dia de Sorte, Timemania, Super Sete e +Milionária.
+Aplicativo web instalável (PWA) com gerador de jogos, estatísticas, análises retrospectivas, conferência de jogos, importação/exportação e backup para nove modalidades: Mega-Sena, Lotofácil, Quina, Lotomania, Dupla Sena, Dia de Sorte, Timemania, Super Sete e +Milionária. Federal e Loteca não estão incluídas.
 
-## Publicar no GitHub Pages (recomendado)
+> Frequência, atraso e padrões descrevem concursos passados. Nenhuma estratégia aumenta a chance matemática de ganhar.
 
-Esta versão foi preparada para ser um **site estático hospedado no GitHub Pages**, sem servidor local e sem instalação de programas no computador do visitante.
+## Estrutura
 
-1. Crie um repositório no GitHub (por exemplo, `loterias-caixa`).
-2. Envie todos os arquivos e pastas deste pacote para a raiz do repositório, preservando `.github/workflows`, `scripts`, `data` e `icons`.
-3. Em **Settings → Pages**, selecione **GitHub Actions** como fonte de publicação.
-4. Em **Actions**, habilite os workflows, se o GitHub solicitar. Execute manualmente `Atualizar resultados CAIXA` uma vez para gerar o primeiro espelho.
-5. O workflow `Publicar site no GitHub Pages` publica o site após cada envio à branch `main`. O endereço será exibido na execução do workflow de publicação.
+```
+index.html  style.css  script.js  service-worker.js  manifest.json
+icons/                      ícones (SVG, PNG, maskable, apple-touch)
+data/index.json             resumo pequeno lido primeiro pelo site
+data/<modalidade>.json      um arquivo por modalidade (gerado pelo workflow)
+scripts/update_caixa.py     atualizador incremental
+.github/workflows/          pages.yml (publica) e update-results.yml (atualiza dados)
+```
 
-Não é necessário executar `python -m http.server` nem manter o computador ligado para que o site fique disponível.
+## Publicar
 
-## Atualização automática dos resultados
+1. Envie todos os arquivos para a raiz do repositório (atenção a `.github/workflows`, `.gitignore` e `.nojekyll`, que começam com ponto).
+2. **Settings → Pages → Source: GitHub Actions**.
+3. **Actions → Atualizar resultados CAIXA → Run workflow**. A primeira carga busca ~23 mil concursos e leva horas; o script grava checkpoints, para sozinho antes do limite de 6 h e **continua de onde parou** na execução seguinte (a cada 6 h, ou manualmente).
+4. Ao terminar, o workflow aciona o `pages.yml` para republicar o site com os dados novos.
 
-- O workflow `.github/workflows/update-results.yml` consulta o endpoint JSON usado pelo Portal Loterias CAIXA a cada seis horas e também pode ser executado manualmente em **Actions**.
-- Os resultados validados são gravados em `data/results.json` e enviados ao repositório. O site lê esse arquivo quando é aberto ou quando o usuário solicita atualização.
-- O workflow mantém um espelho incremental a partir da primeira execução. Se for necessário reconstruir o histórico desde o primeiro concurso, use no aplicativo **Carregar histórico completo das 9 modalidades**; essa carga inicial ainda é feita pelo navegador e pode levar bastante tempo.
-- O histórico completo carregado pelo navegador é armazenado no IndexedDB daquele navegador/dispositivo. Não é sincronizado entre aparelhos. O espelho publicado pelo GitHub contém os resultados capturados pelo workflow desde sua primeira execução.
-- GitHub Actions pode atrasar execuções agendadas, especialmente em períodos de alta demanda. O agendamento não é garantia de atualização no minuto do sorteio.
+## Como funciona a atualização
 
-## Limitações da integração
-
-A CAIXA não oferece uma API pública de resultados documentada e com garantia de estabilidade. O workflow consulta o endpoint JSON utilizado pelo Portal (`servicebus2.caixa.gov.br/portaldeloterias/api/{modalidade}`), que não é documentado e pode mudar. O processo valida modalidade, concurso, data e campos de resultado antes de gravar. Falhas são registradas no JSON como atualização parcial; dados não confirmados não devem ser tratados como resultados oficiais.
-
-O site continua funcionando como aplicação estática. O GitHub Actions executa a consulta agendada e atualiza o arquivo público; não há backend próprio, login ou sincronização de jogos pessoais.
-
-## Modalidades especiais
-
-- Dupla Sena: os dois sorteios do concurso são armazenados e considerados nas frequências e na comparação retrospectiva.
-- Dia de Sorte: inclui o mês da sorte.
-- Timemania: exige o preenchimento do time do coração no jogo.
-- Super Sete: sete colunas, com 1 dígito por coluna na aposta mínima; apostas múltiplas seguem os limites de 7 a 21 prognósticos e as restrições de quantidade por coluna.
-- +Milionária: inclui dois trevos da sorte.
-- Lotomania: o jogo contém 50 números entre 00 e 99; o resultado oficial tem 20 números.
+- `update_caixa.py` consulta o endpoint JSON do Portal Loterias CAIXA (`servicebus2.caixa.gov.br/portaldeloterias/api/{modalidade}`), **não documentado e sujeito a mudanças**. Se a CAIXA bloquear os servidores do GitHub (HTTP 403/5xx seguidos), a modalidade é pausada e registrada em `errors` no `index.json`.
+- Concursos com problema são **pulados e registrados**, sem travar os demais; lacunas são preenchidas nas próximas execuções.
+- Concursos sem algum campo extra (time, mês da sorte, trevos, 2º sorteio) ficam marcados com `"incomplete": true` e continuam nas estatísticas das dezenas principais.
+- `index.json` informa, por modalidade, `count`, `latest`, `missing`, `updatedAt`. O site só baixa o arquivo da modalidade cujo `updatedAt` mudou.
+- **Mega da Virada**: é um concurso especial da Mega-Sena (mesma numeração), então já vem no histórico dela. O atualizador marca essas edições com `specialDraw: "mega-da-virada"` (pelo nome do concurso especial na API ou pela data de 31/12). No site há um cartão próprio no Painel geral e, para a Mega-Sena, o seletor **Concursos considerados → Somente Mega da Virada** no Gerador, nas Estatísticas e nas Análises especiais.
+- Commits feitos com `GITHUB_TOKEN` não disparam outros workflows; por isso o `update-results.yml` chama o `pages.yml` explicitamente.
 
 ## Dados e privacidade
 
-Os concursos ficam no IndexedDB do navegador e os jogos salvos no armazenamento local. Não há conta, servidor próprio, sincronização entre dispositivos ou envio de dados pessoais. Use **Baixar backup completo** antes de limpar dados do navegador ou trocar de aparelho.
+Concursos ficam no IndexedDB do navegador e os jogos salvos no armazenamento local; nada é enviado a servidor. Não há sincronização entre aparelhos: use **Baixar backup completo**.
 
-## Importação e exportação
+## Modalidades especiais
 
-O CSV simples cobre principalmente concurso, data e dezenas. Para dados especiais (segundo sorteio, trevos, mês, time e colunas), prefira a sincronização do Portal ou o backup JSON completo.
-
-## Escopo desta versão
-
-Esta entrega contempla as nove modalidades numéricas listadas e aprovadas na etapa anterior. Federal e Loteca não foram incluídas: possuem estruturas de resultado diferentes (extrações de bilhetes e palpites esportivos) e exigem módulos próprios.
-
-## Limitação estatística
-
-Frequência, atraso, equilíbrio e padrões são descrições de resultados passados. Nenhuma estratégia, filtro ou combinação aumenta a chance matemática de ganhar.
-
-## Publicação e manutenção
-
-- O arquivo `.nojekyll` evita processamento desnecessário do Jekyll.
-- O Service Worker usa estratégia de rede primeiro para obter a versão mais recente do site e do espelho, mantendo cópia em cache para uso offline.
-- Se o repositório usar uma branch diferente de `main`, ajuste `branches` em `.github/workflows/pages.yml`.
+Dupla Sena (dois sorteios), Dia de Sorte (mês da sorte), Timemania (time do coração), Super Sete (7 colunas), +Milionária (dois trevos), Lotomania (aposta de 50 números; resultado de 20).
 
 ## Fontes
 
-- Portal Loterias CAIXA: https://loterias.caixa.gov.br/
-- Regras dos sorteios: https://loterias.caixa.gov.br/Paginas/regras-sorteios.aspx
-- Regras do Super Sete: https://loterias.caixa.gov.br/Paginas/Super-sete.aspx
-
-
-## Correção de sincronização (novembro/2026)
-
-O navegador não consulta mais diretamente a API da CAIXA. Isso evita falhas CORS/HTTP 500 e repetição de chamadas no dispositivo. O site lê somente `data/results.json`, publicado pelo workflow `Atualizar resultados CAIXA`.
-
-Na primeira execução com `data/results.json` vazio, o atualizador começa pelo concurso 1 de cada modalidade e tenta preencher o histórico em ordem. Se a CAIXA falhar em um concurso, a modalidade é registrada como parcial e a próxima execução retoma a partir do último concurso armazenado. A primeira carga pode demorar e o workflow tem limite de até 6 horas por execução.
-
-Para iniciar: GitHub → repositório LOTERIAS → Actions → `Atualizar resultados CAIXA` → `Run workflow`. Acompanhe os avisos e o arquivo `data/results.json`. O site não deve mostrar “histórico completo” até que os nove históricos estejam efetivamente preenchidos.
-
-
-## Mega da Virada
-
-A Mega da Virada está incluída no histórico da Mega-Sena como concurso especial, e não como uma décima modalidade. O atualizador marca os registros identificados oficialmente como “Mega da Virada” e também reconhece o sorteio de 31 de dezembro. Esses registros ficam identificados por `specialDraw: "mega-da-virada"` em `data/results.json`, permitindo estatísticas e filtros específicos sem duplicar os concursos da Mega-Sena.
+- https://loterias.caixa.gov.br/
+- https://loterias.caixa.gov.br/Paginas/regras-sorteios.aspx
