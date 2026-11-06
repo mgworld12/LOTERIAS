@@ -1146,6 +1146,27 @@ function bind() {
       renderSaved();
     }
   };
+  // Tema claro/escuro: segue o sistema até o usuário escolher; a escolha fica salva neste navegador.
+  const root = document.documentElement,
+    themeBtn = $('themeToggle'),
+    paintTheme = () => {
+      const dark = root.dataset.theme === 'dark';
+      themeBtn.setAttribute('aria-label', dark ? 'Mudar para o tema claro' : 'Mudar para o tema escuro');
+      themeBtn.title = dark ? 'Tema claro' : 'Tema escuro';
+    };
+  themeBtn.onclick = () => {
+    root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+    try {
+      localStorage.setItem('lc_theme', root.dataset.theme);
+    } catch (e) {}
+    paintTheme();
+  };
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+    if (localStorage.getItem('lc_theme')) return;
+    root.dataset.theme = e.matches ? 'dark' : 'light';
+    paintTheme();
+  });
+  paintTheme();
   document.querySelectorAll('.game-btn').forEach((b) => (b.onclick = () => selectModality(b.dataset.key)));
   $('syncLatest').onclick = () => updateLatest();
   $('syncForce').onclick = () => updateLatest({ force: true });
