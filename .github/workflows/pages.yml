@@ -21,8 +21,8 @@ jobs:
       - name: Montar somente os arquivos do site
         run: |
           mkdir _site
-          cp index.html style.css script.js service-worker.js manifest.json _site/
-          cp -r icons data _site/
+          cp index.html style.css script.js conferir.js service-worker.js manifest.json _site/
+          cp -r icons data vendor _site/
           touch _site/.nojekyll
       - name: Preparar artefato
         uses: actions/upload-pages-artifact@v3
