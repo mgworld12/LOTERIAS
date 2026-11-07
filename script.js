@@ -319,7 +319,7 @@ function actionsUrl() {
   return m && repo ? `https://github.com/${m[1]}/${repo}/actions` : null;
 }
 const pendingText = (n) =>
-  `O servidor ainda está completando o histórico (faltam ${n.toLocaleString('pt-BR')} concursos); clique em Atualizar resultados mais tarde para baixar o que já foi publicado.`;
+  `O servidor ainda está completando o histórico (faltam ${n.toLocaleString('pt-BR')} concursos).`;
 function idleMessage() {
   const m = meta();
   $('substatus').textContent = draws.length
@@ -381,7 +381,8 @@ function staleMessage() {
     days = m.lastVerified ? (Date.now() - new Date(m.lastVerified)) / 864e5 : null,
     newest = draws.reduce((s, d) => (d.date > s ? d.date : s), ''),
     age = newest ? (Date.now() - new Date(newest + 'T12:00:00')) / 864e5 : 0;
-  if (days !== null && days >= 3) return `⚠ Última verificação há ${Math.floor(days)} dias. Clique em Atualizar resultados.`;
+  if (days !== null && days >= 3)
+    return `⚠ Última verificação há ${Math.floor(days)} dias. Clique em Atualizar resultados.`;
   if (age >= 5) return `⚠ O resultado mais recente salvo aqui é de ${fmtDate(newest)}. Clique em Atualizar resultados.`;
   return '';
 }
@@ -410,18 +411,36 @@ function nextText(t) {
   const n = (meta().publishedModalities || {})[t]?.next;
   return n && n.date >= new Date().toISOString().slice(0, 10) ? `Próximo: nº ${n.contest} · ${fmtDate(n.date)}` : '';
 }
+// Números do último resultado, em grade (ex.: Lotofácil: 5 por linha).
+function lastNumsMarkup(t, d) {
+  if (!d) return '<small class="last-extra">Sem resultado baixado</small>';
+  const cols = ['lotofacil', 'quina', 'lotomania'].includes(t) ? 5 : d.numbers.length >= 7 ? 7 : 6,
+    fmt = (n) => (t === 'supersete' ? n : pad(n)),
+    grid = (list) =>
+      `<div class="last-nums" style="--cols:${cols}">${list.map((n) => `<span>${fmt(n)}</span>`).join('')}</div>`;
+  let html = grid(d.numbers);
+  if (d.secondNumbers?.length) html += `<small class="last-extra">2º sorteio</small>${grid(d.secondNumbers)}`;
+  if (d.trevos?.length) html += `<small class="last-extra">Trevos: ${d.trevos.join(' · ')}</small>`;
+  if (d.month) html += `<small class="last-extra">Mês: ${MONTHS[d.month - 1]}</small>`;
+  if (d.team) html += `<small class="last-extra">Time: ${esc(d.team)}</small>`;
+  return html;
+}
 function cardMarkup(t, key = t) {
   const virada = key === 'virada',
     a = virada ? allDraws('megasena').filter(isVirada) : allDraws(t),
     last = a[a.length - 1],
     next = virada ? '' : nextText(t);
-  return `<article class="mod-card" data-type="${t}" data-key="${key}" data-selected="${selected === key}"><b>${virada ? 'Mega da Virada' : CFG[t].label}</b><strong>${a.length.toLocaleString('pt-BR')}</strong><small>${virada ? 'edições no histórico da Mega-Sena' : 'concursos armazenados'}</small><small>Último: ${last ? `nº ${last.contest} · ${fmtDate(last.date)}` : 'não disponível'}</small>${next ? `<small class="next">${next}</small>` : ''}<span class="card-actions"><button type="button" class="mini" data-go="generator">Gerar jogo</button><button type="button" class="mini" data-go="stats">Estatísticas</button></span></article>`;
+  return `<article class="mod-card" data-type="${t}" data-key="${key}" data-selected="${selected === key}"><div class="card-main"><div class="card-left"><b>${virada ? 'Mega da Virada' : CFG[t].label}</b><strong title="${virada ? 'edições' : 'concursos armazenados'}">${a.length.toLocaleString('pt-BR')}</strong>${next ? `<small class="next">${next}</small>` : ''}</div><div class="card-right"><small class="last">${last ? `Último: nº ${last.contest} · ${fmtDate(last.date)}` : 'Último: não disponível'}</small>${lastNumsMarkup(t, last)}</div></div><span class="card-actions"><button type="button" class="mini" data-go="generator">Gerar jogo</button><button type="button" class="mini" data-go="stats">Estatísticas</button></span></article>`;
 }
 function renderDashboard() {
   const m = meta();
   $('modalityCards').innerHTML =
     !draws.length && syncing
-      ? Array.from({ length: 10 }, () => '<article class="mod-card skeleton" aria-hidden="true"><b></b><strong></strong><small></small><small></small></article>').join('')
+      ? Array.from(
+          { length: 10 },
+          () =>
+            '<article class="mod-card skeleton" aria-hidden="true"><div class="card-main"><div class="card-left"><b></b><strong></strong></div><div class="card-right"><small></small><small></small></div></div></article>',
+        ).join('')
       : Object.keys(CFG)
           .map((t) => cardMarkup(t))
           .join('') + cardMarkup('megasena', 'virada');
@@ -1225,23 +1244,48 @@ function bind() {
     }
   };
 }
+// Aviso flutuante de instalação, com opção de cancelar ("Agora não" é lembrado por 14 dias).
+function setupInstallPrompt() {
+  const KEY = 'lc_install_dismissed',
+    bar = $('installBar'),
+    dismissed = () => {
+      const t = Number(localStorage.getItem(KEY) || 0);
+      return t && Date.now() - t < 14 * 864e5;
+    },
+    hide = (remember) => {
+      bar.hidden = true;
+      if (remember)
+        try {
+          localStorage.setItem(KEY, String(Date.now()));
+        } catch (e) {}
+    };
+  if (matchMedia('(display-mode: standalone)').matches || navigator.standalone) return; // já instalado
+  let promptEvent = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    promptEvent = e;
+    if (!dismissed()) setTimeout(() => (bar.hidden = false), 2500);
+  });
+  window.addEventListener('appinstalled', () => hide(false));
+  $('installYes').onclick = async () => {
+    if (promptEvent) {
+      promptEvent.prompt();
+      await promptEvent.userChoice.catch(() => {});
+      promptEvent = null;
+    }
+    hide(false);
+  };
+  $('installNo').onclick = () => hide(true);
+  if (/iphone|ipad|ipod/i.test(navigator.userAgent) && !dismissed()) {
+    $('installHint').textContent = 'No iPhone/iPad: toque em Compartilhar e depois em “Adicionar à Tela de Início”.';
+    $('installYes').hidden = true;
+    $('installNo').textContent = 'Fechar';
+    setTimeout(() => (bar.hidden = false), 4000);
+  }
+}
 async function init() {
   try {
-    // Ouvir o evento de instalação antes de qualquer await: ele pode disparar cedo.
-    let promptEvent;
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      promptEvent = e;
-      $('install').hidden = false;
-    });
-    $('install').onclick = async () => {
-      if (promptEvent) {
-        promptEvent.prompt();
-        await promptEvent.userChoice;
-        promptEvent = null;
-        $('install').hidden = true;
-      } else alert('No iPhone/iPad: Safari > Compartilhar > Adicionar à Tela de Início.');
-    };
+    setupInstallPrompt(); // escuta o evento de instalação antes de qualquer await: ele pode disparar cedo
     db = await openDB();
     draws = await dbGetAll();
     if (!localStorage.getItem(SAVED_KEY)) {
@@ -1252,10 +1296,6 @@ async function init() {
     updatePick();
     bind();
     renderAll(); // mostra imediatamente o que já está salvo neste dispositivo
-    const setOnline = () => ($('connection').textContent = navigator.onLine ? 'Online' : 'Offline');
-    setOnline();
-    window.addEventListener('online', setOnline);
-    window.addEventListener('offline', setOnline);
     if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost'))
       navigator.serviceWorker.register('./service-worker.js').catch(() => {});
     if (draws.length) idleMessage();
