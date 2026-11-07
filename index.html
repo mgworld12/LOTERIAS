@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-    <meta name="theme-color" content="#0d4a21" />
+    <meta id="metaTheme" name="theme-color" content="#1d6e3a" />
     <meta name="description" content="Análise estatística, histórico oficial e geração de jogos das Loterias CAIXA." />
     <title>Loterias CAIXA — Análise & Estratégias</title>
     <link rel="manifest" href="manifest.json" />
@@ -13,13 +13,14 @@
     <script>
       try {
         var t = localStorage.getItem('lc_theme');
+        document.documentElement.dataset.titlefont = localStorage.getItem('lc_titlefont') || 'fun';
         document.documentElement.dataset.theme =
           t || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
       } catch (e) {
         document.documentElement.dataset.theme = 'light';
       }
     </script>
-    <link rel="stylesheet" href="style.css?v=2.6.0" />
+    <link rel="stylesheet" href="style.css?v=3.0.0" />
   </head>
   <body>
     <a class="skip" href="#conteudo">Ir para o conteúdo</a>
@@ -68,6 +69,7 @@
           <b id="status">Base ainda não sincronizada</b>
           <small id="substatus">A sincronização consulta os resultados publicados pela CAIXA.</small>
           <small id="lastSync">Espelho ainda não publicado</small>
+          <small id="staleNote" class="stale" hidden></small>
           <progress id="syncProgress" max="100" value="0" hidden aria-label="Progresso da atualização"></progress>
         </div>
       </section>
@@ -92,7 +94,7 @@
           data-tab="generator"
         >
           Gerador</button
-        ><button
+        ><button class="tab" role="tab" id="tab-check" aria-controls="check" aria-selected="false" tabindex="-1" data-tab="check">Conferir bilhete</button><button
           class="tab"
           role="tab"
           id="tab-stats"
@@ -206,6 +208,46 @@
         <h3>Jogos gerados</h3>
         <div id="generated" class="cards empty">Configure os critérios e gere seus jogos.</div>
       </section>
+      <section id="check" class="panel" role="tabpanel" aria-labelledby="tab-check" tabindex="0">
+        <h2>Conferir bilhete</h2>
+        <p class="hint">Leia o QR Code do bilhete com a câmera, envie uma foto dele, cole o conteúdo do QR ou digite as dezenas. A conferência usa os resultados salvos neste dispositivo.</p>
+        <div class="check-qr">
+          <div class="actions">
+            <button id="qrStart" class="primary" type="button">Ler QR Code com a câmera</button>
+            <label class="file-button">Enviar foto do QR<input type="file" id="qrFile" accept="image/*" capture="environment" /></label>
+          </div>
+          <div id="qrCam" class="qr-cam" hidden>
+            <video id="qrVideo" playsinline muted></video>
+            <button id="qrStop" type="button">Parar câmera</button>
+          </div>
+          <label class="block">Ou cole o conteúdo lido do QR (qualquer leitor de QR serve)
+            <textarea id="qrText" rows="2" placeholder="Cole aqui o texto do QR Code"></textarea></label>
+          <div class="actions"><button id="qrParse" type="button">Interpretar conteúdo</button></div>
+          <p id="qrMsg" class="feedback" role="status"></p>
+          <details id="qrRawBox" hidden>
+            <summary>Conteúdo lido do QR</summary>
+            <pre id="qrRaw"></pre>
+            <button id="qrCopyRaw" type="button" class="mini">Copiar conteúdo</button>
+          </details>
+        </div>
+        <h3>Dados do bilhete</h3>
+        <div class="fields">
+          <label>Modalidade<select id="chkType"></select></label>
+          <label>Concurso (vazio = último)<input id="chkContest" inputmode="numeric" placeholder="Ex.: 3081" /></label>
+          <label id="chkMonthField" hidden>Mês da sorte<select id="chkMonth"></select></label>
+          <label id="chkTeamField" hidden>Time do coração<input id="chkTeam" placeholder="Ex.: Flamengo/RJ" /></label>
+          <label id="chkTrevosField" hidden>Trevos (2 números, 1 a 6)<input id="chkTrevos" placeholder="Ex.: 2 5" /></label>
+        </div>
+        <label class="block">Dezenas (um jogo por linha)
+          <textarea id="chkNums" rows="4"></textarea></label>
+        <p id="chkLatest" class="hint"></p>
+        <div class="actions">
+          <button id="chkRun" class="primary" type="button">Conferir</button>
+          <button id="chkSavedRun" type="button">Conferir meus jogos salvos</button>
+          <button id="chkClear" type="button">Limpar</button>
+        </div>
+        <div id="chkOut" aria-live="polite"></div>
+      </section>
       <section id="stats" class="panel" role="tabpanel" aria-labelledby="tab-stats" tabindex="0">
         <div class="section-head">
           <div>
@@ -240,6 +282,7 @@
           ><label>Data final<input id="statsTo" type="date" /></label>
         </div>
         <div id="summary" class="summary"></div>
+        <div id="statsCharts" class="charts"></div>
         <div id="ranking" class="ranking empty">Sincronize ou importe o histórico para visualizar.</div>
         <div id="statsDetails" class="stats-details"></div>
         <p class="hint">
@@ -303,14 +346,18 @@
           ><button id="wipe" class="danger">Apagar histórico local</button>
         </div>
         <div id="overview" class="overview"></div>
+        <div id="diag" class="diag"></div>
+        <h3>Aparência</h3>
+        <div class="fields"><label>Fonte do título<select id="titleFont"><option value="fun">Divertida (Comic Sans)</option><option value="sober">Sóbria</option></select></label></div>
         <p id="importMsg" class="feedback"></p>
       </section>
       <section id="saved" class="panel" role="tabpanel" aria-labelledby="tab-saved" tabindex="0">
         <h2>Meus jogos</h2>
         <div id="savedCards" class="cards empty">Nenhum jogo salvo.</div>
+        <p id="savedMsg" class="feedback" role="status"></p>
         <div class="actions">
           <button id="exportSaved">Exportar jogos salvos</button
-          ><button id="deleteSaved" class="danger">Apagar jogos salvos</button>
+          ><button id="exportSavedJson" type="button">Exportar jogos (JSON)</button><label class="file-button">Importar jogos<input type="file" id="importSaved" accept=".json,application/json" /></label><button id="deleteSaved" class="danger">Apagar jogos salvos</button>
         </div>
       </section>
       <footer>
@@ -318,13 +365,9 @@
           Aplicativo independente, sem vínculo institucional com a CAIXA. Consulte e confira os resultados no
           <a href="https://loterias.caixa.gov.br/" target="_blank" rel="noopener">Portal Loterias CAIXA</a>.
         </p>
-        <p>
-          Hospedado no GitHub Pages. Os resultados são publicados pelo GitHub Actions; o histórico baixado e os jogos
-          salvos ficam apenas neste navegador. Use <strong>Baixar backup completo</strong> antes de limpar os dados ou
-          trocar de aparelho.
-        </p>
       </footer>
     </main>
-    <script src="script.js?v=2.6.0"></script>
+    <script src="conferir.js?v=3.0.0"></script>
+    <script src="script.js?v=3.0.0"></script>
   </body>
 </html>

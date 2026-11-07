@@ -7,7 +7,8 @@ Aplicativo web instalável (PWA) com gerador de jogos, estatísticas, análises 
 ## Estrutura
 
 ```
-index.html  style.css  script.js  service-worker.js  manifest.json
+index.html  style.css  script.js  conferir.js  service-worker.js  manifest.json
+vendor/jsQR.js              leitor de QR Code (jsQR 1.4.0, licença Apache-2.0)
 icons/                      ícones (SVG, PNG, maskable, apple-touch)
 data/index.json             resumo pequeno lido primeiro pelo site
 data/<modalidade>.json      um arquivo por modalidade (gerado pelo workflow)
@@ -48,3 +49,15 @@ Dupla Sena (dois sorteios), Dia de Sorte (mês da sorte), Timemania (time do cor
 
 - https://loterias.caixa.gov.br/
 - https://loterias.caixa.gov.br/Paginas/regras-sorteios.aspx
+
+## Conferir bilhete (QR Code)
+
+A aba **Conferir bilhete** confere jogos com o resultado salvo no dispositivo (por padrão, o último concurso).
+
+- **Leitura do QR:** câmera (`getUserMedia`, exige HTTPS — o GitHub Pages atende), foto do QR, ou colar o texto lido por qualquer leitor. Usa `BarcodeDetector` quando o navegador tem e, caso contrário, o jsQR (`vendor/jsQR.js`).
+- **Limitação importante:** a CAIXA **não documenta** o conteúdo do QR dos bilhetes. A leitura tenta extrair modalidade, concurso e dezenas de URLs com parâmetros, JSON, `chave=valor` ou texto com números separados. Se o QR for um código interno, o app mostra o conteúdo lido e o usuário digita as dezenas (um jogo por linha). Se o conteúdo vier em um formato que o app ainda não reconhece, o texto lido pode ser usado para ajustar `parseTicketQR()` em `conferir.js`.
+- **Faixas:** a indicação de premiação segue as regras gerais de acertos de cada modalidade; valores e resgate seguem no App/Portal Loterias CAIXA. O comprovante da lotérica é o documento oficial.
+
+## Outros recursos (v3)
+
+Gráficos de frequência e atraso nas Estatísticas, compartilhar jogos (copiar/WhatsApp), próximo sorteio nos cartões (campo `next` do `index.json`), aviso de dados antigos, importar/exportar jogos salvos em JSON, estado da base (Base de dados), esqueleto de carregamento, fonte do título (Aparência) e atalhos do app instalado.

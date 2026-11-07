@@ -295,6 +295,8 @@ async function loadPublishedResults({ force = false, onProgress = () => {} } = {
     publishedAt: index.generatedAt,
     publishedStatus: index.status,
     publishedMissing: missing,
+    publishedModalities: index.modalities,
+    publishedErrors: index.errors || [],
     stamps: newStamps,
     lastVerified: new Date().toISOString(),
   });
@@ -329,6 +331,8 @@ function idleMessage() {
 async function updateLatest(opts = {}) {
   if (syncing) return;
   setSyncState(true);
+  renderDashboard();
+  renderStatus();
   $('syncProgress').removeAttribute('value'); // barra indeterminada até saber quantas modalidades
   $('substatus').textContent = 'Atualizando em segundo plano… você pode continuar usando o app.';
   try {
@@ -361,12 +365,25 @@ async function updateLatest(opts = {}) {
     logSync('Falha ao ler o espelho público: ' + e.message);
   } finally {
     setSyncState(false);
+    renderDashboard();
+    renderStatus();
   }
 }
 function mergeDraws(rows) {
   const m = new Map(draws.map((d) => [`${d.type}:${d.contest}`, d]));
   rows.forEach((d) => m.set(`${d.type}:${d.contest}`, d));
   draws = [...m.values()].sort((a, b) => a.type.localeCompare(b.type) || a.contest - b.contest);
+}
+// Aviso quando os dados podem estar desatualizados (o app só busca novidades quando o usuário pede).
+function staleMessage() {
+  if (!draws.length) return '';
+  const m = meta(),
+    days = m.lastVerified ? (Date.now() - new Date(m.lastVerified)) / 864e5 : null,
+    newest = draws.reduce((s, d) => (d.date > s ? d.date : s), ''),
+    age = newest ? (Date.now() - new Date(newest + 'T12:00:00')) / 864e5 : 0;
+  if (days !== null && days >= 3) return `⚠ Última verificação há ${Math.floor(days)} dias. Clique em Atualizar resultados.`;
+  if (age >= 5) return `⚠ O resultado mais recente salvo aqui é de ${fmtDate(newest)}. Clique em Atualizar resultados.`;
+  return '';
 }
 function renderStatus() {
   const count = draws.length,
@@ -377,7 +394,10 @@ function renderStatus() {
   $('status').textContent = count
     ? count.toLocaleString('pt-BR') + ' concursos armazenados'
     : 'Base ainda não sincronizada';
-  $('emptyHelp').hidden = count > 0;
+  $('emptyHelp').hidden = count > 0 || syncing;
+  const stale = staleMessage();
+  $('staleNote').hidden = !stale;
+  $('staleNote').textContent = stale;
   const link = actionsUrl();
   if (link) $('actionsLink').href = link;
   else $('actionsLink').removeAttribute('href');
@@ -386,32 +406,34 @@ function renderStatus() {
     (megaVirada ? ` · Mega da Virada: ${megaVirada} edições` : ' · Mega da Virada: incluída no histórico da Mega-Sena');
 }
 let selected = ''; // modalidade escolhida no painel (ou 'virada')
-function viradaCard() {
-  const v = allDraws('megasena').filter(isVirada),
-    last = v[v.length - 1];
-  return `<article class="mod-card" data-type="megasena" data-scope="virada" tabindex="0" role="button" aria-pressed="${selected === 'virada'}"><b>Mega da Virada</b><strong>${v.length.toLocaleString('pt-BR')}</strong><small>edições no histórico da Mega-Sena</small><small>Última: ${last ? `nº ${last.contest} · ${fmtDate(last.date)}` : 'não disponível'}</small></article>`;
+function nextText(t) {
+  const n = (meta().publishedModalities || {})[t]?.next;
+  return n && n.date >= new Date().toISOString().slice(0, 10) ? `Próximo: nº ${n.contest} · ${fmtDate(n.date)}` : '';
+}
+function cardMarkup(t, key = t) {
+  const virada = key === 'virada',
+    a = virada ? allDraws('megasena').filter(isVirada) : allDraws(t),
+    last = a[a.length - 1],
+    next = virada ? '' : nextText(t);
+  return `<article class="mod-card" data-type="${t}" data-key="${key}" data-selected="${selected === key}"><b>${virada ? 'Mega da Virada' : CFG[t].label}</b><strong>${a.length.toLocaleString('pt-BR')}</strong><small>${virada ? 'edições no histórico da Mega-Sena' : 'concursos armazenados'}</small><small>Último: ${last ? `nº ${last.contest} · ${fmtDate(last.date)}` : 'não disponível'}</small>${next ? `<small class="next">${next}</small>` : ''}<span class="card-actions"><button type="button" class="mini" data-go="generator">Gerar jogo</button><button type="button" class="mini" data-go="stats">Estatísticas</button></span></article>`;
 }
 function renderDashboard() {
   const m = meta();
   $('modalityCards').innerHTML =
-    Object.keys(CFG)
-      .map((t) => {
-        const a = allDraws(t),
-          last = a[a.length - 1];
-        return `<article class="mod-card" data-type="${t}" tabindex="0" role="button" aria-pressed="${selected === t}"><b>${CFG[t].label}</b><strong>${a.length.toLocaleString('pt-BR')}</strong><small>concursos armazenados</small><small>Último: ${last ? `nº ${last.contest} · ${fmtDate(last.date)}` : 'não disponível'}</small></article>`;
-      })
-      .join('') + viradaCard();
+    !draws.length && syncing
+      ? Array.from({ length: 10 }, () => '<article class="mod-card skeleton" aria-hidden="true"><b></b><strong></strong><small></small><small></small></article>').join('')
+      : Object.keys(CFG)
+          .map((t) => cardMarkup(t))
+          .join('') + cardMarkup('megasena', 'virada');
+  $('modalityCards').setAttribute('aria-busy', String(!draws.length && syncing));
   $('lastSync').textContent = m.publishedAt
     ? 'Dados atualizados em: ' + new Date(m.publishedAt).toLocaleString('pt-BR')
     : 'Espelho ainda não publicado';
-  document.querySelectorAll('#modalityCards .mod-card').forEach((c) => {
-    const pick = () => selectModality(c.dataset.scope === 'virada' ? 'virada' : c.dataset.type);
-    c.onclick = pick;
-    c.onkeydown = (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        pick();
-      }
+  document.querySelectorAll('#modalityCards .mod-card:not(.skeleton)').forEach((c) => {
+    c.onclick = (e) => {
+      const go = e.target.closest('[data-go]');
+      selectModality(c.dataset.key);
+      if (go) $('tab-' + go.dataset.go).click();
     };
   });
 }
@@ -436,6 +458,8 @@ function renderAll() {
   renderStats();
   renderAnalysis();
   renderSaved();
+  renderCheck();
+  renderDiagnostics();
 }
 function fillModalities() {
   const opts = Object.entries(CFG).map(([k, v]) => new Option(v.label, k));
@@ -679,20 +703,12 @@ function createGame(t, strategy, period) {
   return game;
 }
 function gameMarkup(g, i, saved = false) {
-  const nums =
-    g.type === 'supersete'
-      ? g.columns
-          .map(
-            (col, j) =>
-              `<span class="ball" title="Coluna ${j + 1}">${(Array.isArray(col) ? col : [col]).join(',')}<small style="font-size:8px">${j + 1}</small></span>`,
-          )
-          .join('')
-      : g.numbers.map((n) => `<span class="ball">${pad(n)}</span>`).join('');
-  let extras = '';
-  if (g.month) extras += ` · Mês: ${MONTHS[g.month - 1]}`;
-  if (g.team) extras += ` · Time: ${esc(g.team)}`;
-  if (g.trevos) extras += ` · Trevos: ${g.trevos.map(pad).join(' e ')}`;
-  return `<article class="game" data-type="${g.type}"><div class="gamehead"><span>${CFG[g.type].label} · Jogo ${i + 1}</span>${saved ? `<button data-del="${i}">Excluir</button>` : ''}</div><div class="balls">${nums}</div>${g.secondNumbers ? `<small>2º sorteio: ${g.secondNumbers.map(pad).join(' · ')}</small>` : ''}<div class="meta">${esc(g.strategy || 'Salvo')}${extras} · ${g.created ? new Date(g.created).toLocaleString('pt-BR') : ''}</div></article>`;
+  const sc = saved ? lastScore(g) : null,
+    tier = sc ? tierOf(g.type, sc.res) : '',
+    result = sc
+      ? `<p class="res-sum"><b>Último concurso (nº ${sc.d.contest}, ${fmtDate(sc.d.date)}):</b> ${summaryText(g, sc.res)}${tier ? ` · 🎉 ${esc(tier)}` : ''}</p>`
+      : '';
+  return `<article class="game${tier ? ' win' : ''}" data-type="${g.type}"><div class="gamehead"><span>${CFG[g.type].label} · Jogo ${i + 1}</span><span class="head-actions">${shareButtons(g)}${saved ? `<button type="button" class="mini" data-del="${i}">Excluir</button>` : ''}</span></div><div class="balls">${ballsMarkup(g, sc?.res)}</div>${g.secondNumbers ? `<small>2º sorteio: ${g.secondNumbers.map(pad).join(' · ')}</small>` : ''}${result}<div class="meta">${esc(g.strategy || 'Salvo')}${extrasText(g)} · ${g.created ? new Date(g.created).toLocaleString('pt-BR') : ''}</div></article>`;
 }
 function renderGames(id, list, saved = false) {
   const el = $(id);
@@ -731,6 +747,7 @@ function renderStats() {
     `<div><b>${a.length.toLocaleString('pt-BR')}</b><small>Concursos analisados</small></div><div><b>${cfg.max + 1 * (cfg.zero || cfg.digit ? 1 : 0)}</b><small>Números possíveis</small></div><div><b>${a.length ? Math.max(...freq) : '—'}</b><small>Maior frequência</small></div><div><b>${a.length ? Math.min(...arr.map((n) => freq[n])) : '—'}</b><small>Menor frequência</small></div>`;
   $('ranking').classList.toggle('empty', !a.length);
   $('ranking').dataset.type = t;
+  renderStatsCharts(t, a, freq, delay, totalSlots);
   $('ranking').innerHTML = a.length
     ? arr
         .map(
@@ -1012,6 +1029,7 @@ function csvTemplate() {
   );
 }
 function bind() {
+  initCheck();
   const tabs = [...document.querySelectorAll('.tab')];
   const showTab = (b, focus = false) => {
     tabs.forEach((x) => {
@@ -1021,6 +1039,8 @@ function bind() {
     });
     document.querySelectorAll('.panel').forEach((x) => x.classList.toggle('active', x.id === b.dataset.tab));
     if (focus) b.focus();
+    if (b.dataset.tab !== 'check') stopCamera();
+    if (b.dataset.tab === 'check') renderCheck();
     if (b.dataset.tab === 'stats') renderStats();
     if (b.dataset.tab === 'analysis') renderAnalysis();
     if (b.dataset.tab === 'saved') renderSaved();
@@ -1153,6 +1173,7 @@ function bind() {
       const dark = root.dataset.theme === 'dark';
       themeBtn.setAttribute('aria-label', dark ? 'Mudar para o tema claro' : 'Mudar para o tema escuro');
       themeBtn.title = dark ? 'Tema claro' : 'Tema escuro';
+      $('metaTheme').content = dark ? '#14452a' : '#1d6e3a';
     };
   themeBtn.onclick = () => {
     root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
