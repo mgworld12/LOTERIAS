@@ -208,6 +208,19 @@ def write_if_changed(path: Path, text: str) -> bool:
     return True
 
 
+NEXTS: dict = {}  # modalidade -> {"contest": n, "date": "AAAA-MM-DD"} (do último concurso consultado)
+
+
+def next_info(raw):
+    """Próximo concurso informado pela API (número e data), se disponível."""
+    try:
+        date = datetime.strptime(str(raw.get("dataProximoConcurso") or ""), "%d/%m/%Y").date().isoformat()
+        num = int(raw.get("numeroConcursoProximo") or 0)
+        return {"contest": num, "date": date} if num else None
+    except (ValueError, TypeError):
+        return None
+
+
 def save_all(store, tops, errors, prev_index):
     """Grava arquivos de modalidade alterados e o index.json. Retorna True se algo mudou."""
     DATA.mkdir(parents=True, exist_ok=True)
@@ -230,6 +243,7 @@ def save_all(store, tops, errors, prev_index):
             "latest": ordered[-1]["contest"],
             "latestDate": ordered[-1]["date"],
             "missing": max(0, top - len(ordered)),
+            **({"next": NEXTS.get(kind) or prev.get("next")} if (NEXTS.get(kind) or prev.get("next")) else {}),
             "incomplete": sum(1 for d in ordered if d.get("incomplete")),
             "updatedAt": now if file_changed or not prev.get("updatedAt") else prev["updatedAt"],
         }
@@ -268,7 +282,11 @@ def main():
     # Fase 1: descobrir o último concurso de cada modalidade.
     for kind in MODALITIES:
         try:
-            item = normalize(kind, get_json(API + kind))
+            raw_latest = get_json(API + kind)
+            item = normalize(kind, raw_latest)
+            nxt = next_info(raw_latest)
+            if nxt:
+                NEXTS[kind] = nxt
             tops[kind] = item["contest"]
             store[kind][item["contest"]] = item
         except Exception as exc:
