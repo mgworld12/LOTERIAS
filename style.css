@@ -1570,9 +1570,64 @@ nav[role='tablist'] .tab:last-child {
   }
 }
 /* grade responsiva dos cartões e dos gráficos */
-.modality-grid { grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); }
-.charts { grid-template-columns: minmax(0, 1fr); }
-.chart { min-width: 0; }
-@media (max-width: 380px) { .modality-grid { grid-template-columns: minmax(0, 1fr); } .card-main { gap: 6px 14px; } }
-.diag-table thead th:not(:first-child) { text-align: right; }
-@media (max-width: 640px) { .diag-table thead th:not(:first-child) { text-align: left; } }
+.modality-grid {
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+}
+.charts {
+  grid-template-columns: minmax(0, 1fr);
+}
+.chart {
+  min-width: 0;
+}
+@media (max-width: 380px) {
+  .modality-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .card-main {
+    gap: 6px 14px;
+  }
+}
+.diag-table thead th:not(:first-child) {
+  text-align: right;
+}
+@media (max-width: 640px) {
+  .diag-table thead th:not(:first-child) {
+    text-align: left;
+  }
+}
+
+/* ===== v3.2.2: cartões no celular — resultado logo abaixo do nome, sem afastar para a direita ===== */
+@media (max-width: 600px) {
+  .card-main {
+    display: block;
+  }
+  .card-left {
+    min-width: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .card-left strong {
+    margin: 0;
+    font-size: 24px;
+  }
+  .card-right {
+    margin-top: 8px;
+  }
+  .card-right .last {
+    margin-bottom: 8px;
+  }
+  .last-nums {
+    justify-content: start;
+  }
+}
+@media (max-width: 600px) {
+  .card-foot {
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .card-foot span + span::before {
+    display: none;
+  }
+}
