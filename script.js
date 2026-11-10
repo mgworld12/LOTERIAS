@@ -412,17 +412,19 @@ function nextText(t) {
   return n && n.date >= new Date().toISOString().slice(0, 10) ? `Próximo: nº ${n.contest} · ${fmtDate(n.date)}` : '';
 }
 // Números do último resultado, em grade (ex.: Lotofácil: 5 por linha).
-// Dias da semana em que a modalidade sorteia, deduzidos dos últimos concursos salvos (acompanha mudanças de calendário).
-function drawDays(t) {
-  const a = allDraws(t).slice(-24);
-  if (a.length < 4) return '';
-  const cnt = Array(7).fill(0),
-    names = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-  a.forEach((d) => cnt[new Date(d.date + 'T12:00:00').getDay()]++);
-  const days = [1, 2, 3, 4, 5, 6, 0].filter((i) => cnt[i] / a.length >= 0.2);
-  if (days.join() === '1,2,3,4,5,6') return 'Seg a Sáb';
-  return days.map((i) => names[i]).join(' · ');
-}
+// Calendário oficial dos sorteios (informado pelo usuário; horários de Brasília).
+const SCHEDULE = {
+  lotofacil: 'Seg a Sex 21h · Dom 11h',
+  quina: 'Seg a Sex 21h · Dom 11h',
+  megasena: 'Ter e Qui 21h · Dom 11h',
+  diadesorte: 'Ter e Qui 21h · Dom 11h',
+  timemania: 'Ter e Qui 21h · Dom 11h',
+  maismilionaria: 'Ter e Qui 21h · Dom 11h',
+  duplasena: 'Seg, Qua e Sex 21h',
+  lotomania: 'Seg, Qua e Sex 21h',
+  supersete: 'Seg, Qua e Sex 21h',
+};
+const drawDays = (t) => SCHEDULE[t] || '';
 function lastNumsMarkup(t, d) {
   if (!d) return '<small class="last-extra">Sem resultado baixado</small>';
   const cols = ['lotofacil', 'quina', 'lotomania'].includes(t) ? 5 : d.numbers.length >= 7 ? 7 : 6,
