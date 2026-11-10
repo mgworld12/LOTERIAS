@@ -1454,3 +1454,125 @@ nav[role='tablist'] .tab:last-child {
 :root[data-theme='dark'] .install-bar small {
   color: #9db3be;
 }
+
+/* ===== v3.2: números em círculos, rodapé do cartão, estado da base colorido e responsivo ===== */
+.last-nums {
+  grid-template-columns: repeat(var(--cols, 6), var(--sz, 30px));
+  gap: 5px;
+  letter-spacing: 0;
+  font-size: 12.5px;
+}
+.last-nums[style*='--sz:27px'] {
+  gap: 4px;
+  font-size: 12px;
+}
+.last-nums span {
+  width: var(--sz, 30px);
+  height: var(--sz, 30px);
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--d);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--d);
+  line-height: 1;
+}
+:root[data-theme='dark'] .last-nums span {
+  border-color: color-mix(in srgb, var(--c) 75%, #fff);
+  color: color-mix(in srgb, var(--c) 45%, #fff);
+}
+.card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px 12px;
+  margin-top: 10px;
+  font-size: 11px;
+  color: #6b7b88;
+  text-align: center;
+}
+.card-foot .next {
+  color: var(--d);
+  font-weight: 650;
+}
+.card-foot span + span::before {
+  content: '·';
+  margin-right: 12px;
+  color: #9fb0ba;
+  font-weight: 400;
+}
+:root[data-theme='dark'] .card-foot {
+  color: #9db3be;
+}
+:root[data-theme='dark'] .card-foot .next {
+  color: color-mix(in srgb, var(--c) 45%, #fff);
+}
+.card-left {
+  min-width: 84px;
+}
+/* Estado da base: linha de cada jogo na cor clarinha do jogo */
+.diag-table tbody tr {
+  background: var(--tint);
+}
+.diag-table tbody th,
+.diag-table tbody td {
+  background: transparent;
+}
+.diag-table tbody th {
+  border-left: 5px solid var(--d);
+  color: var(--d);
+}
+@media (max-width: 640px) {
+  .diag-table {
+    min-width: 0;
+    display: block;
+  }
+  .diag-table thead {
+    display: none;
+  }
+  .diag-table tbody {
+    display: grid;
+    gap: 10px;
+  }
+  .diag-table tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-radius: 10px;
+    overflow: hidden;
+    border-left: 5px solid var(--d);
+    padding-bottom: 4px;
+  }
+  .diag-table tbody th {
+    grid-column: 1 / -1;
+    border: 0;
+    padding: 9px 12px 4px;
+    font-size: 14px;
+    text-align: left;
+  }
+  .diag-table td {
+    display: block;
+    border: 0;
+    padding: 4px 12px;
+    text-align: left;
+    white-space: normal;
+  }
+  .diag-table td::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 10px;
+    color: #6b7b88;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  :root[data-theme='dark'] .diag-table td::before {
+    color: #9db3be;
+  }
+}
+/* grade responsiva dos cartões e dos gráficos */
+.modality-grid { grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); }
+.charts { grid-template-columns: minmax(0, 1fr); }
+.chart { min-width: 0; }
+@media (max-width: 380px) { .modality-grid { grid-template-columns: minmax(0, 1fr); } .card-main { gap: 6px 14px; } }
+.diag-table thead th:not(:first-child) { text-align: right; }
+@media (max-width: 640px) { .diag-table thead th:not(:first-child) { text-align: left; } }

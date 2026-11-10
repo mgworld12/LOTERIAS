@@ -20,7 +20,7 @@
         document.documentElement.dataset.theme = 'light';
       }
     </script>
-    <link rel="stylesheet" href="style.css?v=3.1.0" />
+    <link rel="stylesheet" href="style.css?v=3.2.0" />
   </head>
   <body>
     <a class="skip" href="#conteudo">Ir para o conteúdo</a>
@@ -50,21 +50,21 @@
             </button>
           </div>
         </div>
-        <div class="game-buttons" role="group" aria-label="Escolha o jogo">
+        <div class="game-buttons" id="gameButtons" role="group" aria-label="Escolha o jogo">
           <button class="game-btn" data-type="megasena" data-key="megasena" aria-pressed="false">Mega-Sena</button>
-          <button class="game-btn" data-type="megasena" data-key="virada" aria-pressed="false">Mega da Virada</button>
-          <button class="game-btn" data-type="duplasena" data-key="duplasena" aria-pressed="false">Dupla Sena</button>
-          <button class="game-btn" data-type="quina" data-key="quina" aria-pressed="false">Quina</button>
           <button class="game-btn" data-type="lotofacil" data-key="lotofacil" aria-pressed="false">Lotofácil</button>
-          <button class="game-btn" data-type="maismilionaria" data-key="maismilionaria" aria-pressed="false">
-            +Milionária
-          </button>
+          <button class="game-btn" data-type="quina" data-key="quina" aria-pressed="false">Quina</button>
+          <button class="game-btn" data-type="lotomania" data-key="lotomania" aria-pressed="false">Lotomania</button>
+          <button class="game-btn" data-type="duplasena" data-key="duplasena" aria-pressed="false">Dupla Sena</button>
           <button class="game-btn" data-type="diadesorte" data-key="diadesorte" aria-pressed="false">
             Dia de Sorte
           </button>
-          <button class="game-btn" data-type="lotomania" data-key="lotomania" aria-pressed="false">Lotomania</button>
-          <button class="game-btn" data-type="supersete" data-key="supersete" aria-pressed="false">Super Sete</button>
           <button class="game-btn" data-type="timemania" data-key="timemania" aria-pressed="false">Timemania</button>
+          <button class="game-btn" data-type="supersete" data-key="supersete" aria-pressed="false">Super Sete</button>
+          <button class="game-btn" data-type="maismilionaria" data-key="maismilionaria" aria-pressed="false">
+            +Milionária
+          </button>
+          <button class="game-btn" data-type="megasena" data-key="virada" aria-pressed="false">Mega da Virada</button>
         </div>
         <progress
           id="syncProgress"
@@ -403,7 +403,7 @@
         </p>
       </footer>
     </main>
-    <script src="conferir.js?v=3.1.0"></script>
-    <script src="script.js?v=3.1.0"></script>
+    <script src="conferir.js?v=3.2.0"></script>
+    <script src="script.js?v=3.2.0"></script>
   </body>
 </html>

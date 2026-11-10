@@ -11,7 +11,14 @@ const TIERS = {
   megasena: { 6: 'Sena', 5: 'Quina', 4: 'Quadra' },
   lotofacil: { 15: '15 acertos', 14: '14 acertos', 13: '13 acertos', 12: '12 acertos', 11: '11 acertos' },
   quina: { 5: 'Quina', 4: 'Quadra', 3: 'Terno', 2: 'Duque' },
-  lotomania: { 20: '20 acertos', 19: '19 acertos', 18: '18 acertos', 17: '17 acertos', 16: '16 acertos', 0: 'Nenhum acerto' },
+  lotomania: {
+    20: '20 acertos',
+    19: '19 acertos',
+    18: '18 acertos',
+    17: '17 acertos',
+    16: '16 acertos',
+    0: 'Nenhum acerto',
+  },
   duplasena: { 6: 'Sena', 5: 'Quina', 4: 'Quadra', 3: 'Terno' },
   diadesorte: { 7: '7 acertos', 6: '6 acertos', 5: '5 acertos', 4: '4 acertos' },
   timemania: { 7: '7 acertos', 6: '6 acertos', 5: '5 acertos', 4: '4 acertos', 3: '3 acertos' },
@@ -72,7 +79,8 @@ function lastScore(g) {
   const d = latestDraw(g.type);
   return d ? { d, res: scoreGame(g, d) } : null;
 }
-const isHit = (g, res, n, col) => (g.type === 'supersete' ? res.hits.has(col) : res.hits.has(n) || Boolean(res.second?.hits.has(n)));
+const isHit = (g, res, n, col) =>
+  g.type === 'supersete' ? res.hits.has(col) : res.hits.has(n) || Boolean(res.second?.hits.has(n));
 
 function ballsMarkup(g, res) {
   if (g.type === 'supersete')
@@ -139,7 +147,8 @@ function parseLines(type, text) {
         tokens = tokens[0].match(/\d{2}/g); // "010203040506" → 01 02 03 04 05 06
       const nums = tokens.map(Number);
       if (new Set(nums).size !== nums.length) return errors.push(`${tag}: há números repetidos.`);
-      if (nums.some((n) => n < lo || n > cfg.max)) return errors.push(`${tag}: use números de ${pad(lo)} a ${pad(cfg.max)}.`);
+      if (nums.some((n) => n < lo || n > cfg.max))
+        return errors.push(`${tag}: use números de ${pad(lo)} a ${pad(cfg.max)}.`);
       if (nums.length < cfg.min || nums.length > cfg.maxPick)
         return errors.push(
           `${tag}: ${CFG[type].label} aceita de ${cfg.min} a ${cfg.maxPick} números (você informou ${nums.length}).`,
@@ -187,7 +196,8 @@ function runCheck() {
 }
 function runCheckSaved() {
   const saved = safeJSON(localStorage.getItem(SAVED_KEY), []);
-  if (!saved.length) return checkMsg('Você ainda não salvou jogos. Gere jogos no Gerador e clique em Salvar jogos.', 'help');
+  if (!saved.length)
+    return checkMsg('Você ainda não salvou jogos. Gere jogos no Gerador e clique em Salvar jogos.', 'help');
   const cards = [],
     missing = new Set();
   saved.forEach((g, i) => {
@@ -245,7 +255,9 @@ function parseTicketQR(raw) {
     if (j && typeof j === 'object')
       (function walk(o, p = '') {
         Object.entries(o).forEach(([k, v]) =>
-          v && typeof v === 'object' && !Array.isArray(v) ? walk(v) : (kv[(p + k).toLowerCase()] = Array.isArray(v) ? v.join(' ') : String(v)),
+          v && typeof v === 'object' && !Array.isArray(v)
+            ? walk(v)
+            : (kv[(p + k).toLowerCase()] = Array.isArray(v) ? v.join(' ') : String(v)),
         );
       })(j);
   } catch {}
@@ -260,7 +272,11 @@ function parseTicketQR(raw) {
       out.type = t;
       break;
     }
-  out.contest = (pick('concurso', 'numeroconcurso', 'nconcurso', 'numconcurso') || (text.match(/concurso\D{0,3}(\d{1,5})/i) || [])[1] || '').replace(/\D/g, '');
+  out.contest = (
+    pick('concurso', 'numeroconcurso', 'nconcurso', 'numconcurso') ||
+    (text.match(/concurso\D{0,3}(\d{1,5})/i) || [])[1] ||
+    ''
+  ).replace(/\D/g, '');
   out.month = pick('mes', 'messorte', 'mesdesorte');
   out.team = pick('time', 'timecoracao', 'timedocoracao');
   out.trevos = pick('trevos', 'trevo');
@@ -333,11 +349,18 @@ async function stopCamera() {
   if ($('qrStart')) $('qrStart').disabled = false;
 }
 async function startCamera() {
-  if (!navigator.mediaDevices?.getUserMedia) return qrMsg('Câmera indisponível neste navegador. Use "Enviar foto do QR" ou cole o conteúdo.', true);
+  if (!navigator.mediaDevices?.getUserMedia)
+    return qrMsg('Câmera indisponível neste navegador. Use "Enviar foto do QR" ou cole o conteúdo.', true);
   try {
-    camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } }, audio: false });
+    camStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } },
+      audio: false,
+    });
   } catch (e) {
-    return qrMsg(`Não foi possível abrir a câmera (${e.name}). Permita o acesso à câmera ou use "Enviar foto do QR".`, true);
+    return qrMsg(
+      `Não foi possível abrir a câmera (${e.name}). Permita o acesso à câmera ou use "Enviar foto do QR".`,
+      true,
+    );
   }
   const v = $('qrVideo');
   v.srcObject = camStream;
@@ -402,7 +425,10 @@ async function decodeImageFile(file) {
 
 // ===================================================================== compartilhar jogos
 function shareText(g) {
-  const nums = g.type === 'supersete' ? g.columns.map((c) => (Array.isArray(c) ? c.join('/') : c)).join(' - ') : g.numbers.map(pad).join(' ');
+  const nums =
+    g.type === 'supersete'
+      ? g.columns.map((c) => (Array.isArray(c) ? c.join('/') : c)).join(' - ')
+      : g.numbers.map(pad).join(' ');
   let t = `${CFG[g.type].label}: ${nums}`;
   if (g.month) t += ` | Mês: ${MONTHS[g.month - 1]}`;
   if (g.team) t += ` | Time: ${g.team}`;
@@ -458,12 +484,23 @@ function renderStatsCharts(t, a, freq, delay, totalSlots) {
     return;
   }
   const cfg = CFG[t],
-    nums = Array.from({ length: cfg.max + (cfg.zero || cfg.digit ? 1 : 0) }, (_, i) => i + (cfg.zero || cfg.digit ? 0 : 1)),
+    nums = Array.from(
+      { length: cfg.max + (cfg.zero || cfg.digit ? 1 : 0) },
+      (_, i) => i + (cfg.zero || cfg.digit ? 0 : 1),
+    ),
     avg = totalSlots ? totalSlots / nums.length : null;
   el.dataset.type = t;
   el.innerHTML =
-    barChart('Frequência de cada dezena no período', nums.map((n) => ({ label: pad(n), value: freq[n] || 0 })), { avg }) +
-    barChart('Atraso atual de cada dezena (concursos sem sair)', nums.map((n) => ({ label: pad(n), value: delay[n] || 0 })), {});
+    barChart(
+      'Frequência de cada dezena no período',
+      nums.map((n) => ({ label: pad(n), value: freq[n] || 0 })),
+      { avg },
+    ) +
+    barChart(
+      'Atraso atual de cada dezena (concursos sem sair)',
+      nums.map((n) => ({ label: pad(n), value: delay[n] || 0 })),
+      {},
+    );
 }
 
 // ===================================================================== diagnóstico da base
@@ -477,8 +514,11 @@ function renderDiagnostics() {
         const local = allDraws(t),
           last = local[local.length - 1],
           p = mods[t] || {},
-          nx = p.next && p.next.date >= new Date().toISOString().slice(0, 10) ? `nº ${p.next.contest} · ${fmtDate(p.next.date)}` : '—';
-        return `<tr data-type="${t}"><th scope="row">${CFG[t].label}</th><td>${local.length.toLocaleString('pt-BR')}</td><td>${p.count != null ? p.count.toLocaleString('pt-BR') : '—'}</td><td>${p.missing ? p.missing.toLocaleString('pt-BR') : p.count != null ? '0' : '—'}</td><td>${p.incomplete || 0}</td><td>${last ? `nº ${last.contest} · ${fmtDate(last.date)}` : '—'}</td><td>${nx}</td></tr>`;
+          nx =
+            p.next && p.next.date >= new Date().toISOString().slice(0, 10)
+              ? `nº ${p.next.contest} · ${fmtDate(p.next.date)}`
+              : '—';
+        return `<tr data-type="${t}"><th scope="row">${CFG[t].label}</th><td data-label="Neste dispositivo">${local.length.toLocaleString('pt-BR')}</td><td data-label="Publicado">${p.count != null ? p.count.toLocaleString('pt-BR') : '—'}</td><td data-label="Faltam">${p.missing ? p.missing.toLocaleString('pt-BR') : p.count != null ? '0' : '—'}</td><td data-label="Incompletos">${p.incomplete || 0}</td><td data-label="Último">${last ? `nº ${last.contest} · ${fmtDate(last.date)}` : '—'}</td><td data-label="Próximo sorteio">${nx}</td></tr>`;
       })
       .join(''),
     totalMissing = Object.values(mods).reduce((s, x) => s + (x.missing || 0), 0),
@@ -501,7 +541,15 @@ function applyTitleFont() {
 function exportSavedJson() {
   download(
     'jogos-salvos.json',
-    JSON.stringify({ format: 'loterias-caixa-jogos-v1', created: new Date().toISOString(), saved: safeJSON(localStorage.getItem(SAVED_KEY), []) }, null, 2),
+    JSON.stringify(
+      {
+        format: 'loterias-caixa-jogos-v1',
+        created: new Date().toISOString(),
+        saved: safeJSON(localStorage.getItem(SAVED_KEY), []),
+      },
+      null,
+      2,
+    ),
     'application/json',
   );
 }
@@ -531,7 +579,8 @@ function initCheck() {
   $('chkType').innerHTML = Object.keys(CFG)
     .map((t) => `<option value="${t}">${CFG[t].label}</option>`)
     .join('');
-  $('chkMonth').innerHTML = '<option value="">—</option>' + MONTHS.map((m, i) => `<option value="${i + 1}">${m}</option>`).join('');
+  $('chkMonth').innerHTML =
+    '<option value="">—</option>' + MONTHS.map((m, i) => `<option value="${i + 1}">${m}</option>`).join('');
   $('chkType').onchange = syncCheckFields;
   $('chkRun').onclick = runCheck;
   $('chkSavedRun').onclick = runCheckSaved;
@@ -544,7 +593,8 @@ function initCheck() {
   };
   $('qrStart').onclick = startCamera;
   $('qrStop').onclick = stopCamera;
-  $('qrParse').onclick = () => ($('qrText').value.trim() ? handleQrText($('qrText').value) : qrMsg('Cole o conteúdo do QR Code no campo.', true));
+  $('qrParse').onclick = () =>
+    $('qrText').value.trim() ? handleQrText($('qrText').value) : qrMsg('Cole o conteúdo do QR Code no campo.', true);
   $('qrCopyRaw').onclick = () => copyText($('qrRaw').textContent);
   $('qrFile').onchange = async (e) => {
     const f = e.target.files[0];
@@ -553,7 +603,12 @@ function initCheck() {
     qrMsg('Lendo a imagem…');
     try {
       const text = await decodeImageFile(f);
-      text ? handleQrText(text) : qrMsg('Não encontrei um QR Code legível na foto. Aproxime, evite reflexos e tente de novo, ou digite os números.', true);
+      text
+        ? handleQrText(text)
+        : qrMsg(
+            'Não encontrei um QR Code legível na foto. Aproxime, evite reflexos e tente de novo, ou digite os números.',
+            true,
+          );
     } catch (err) {
       qrMsg('Não foi possível ler a imagem: ' + err.message, true);
     }

@@ -1,4 +1,4 @@
-const CACHE='loterias-caixa-v3.1.0';
+const CACHE='loterias-caixa-v3.2.0';
 const ASSETS=['./','./index.html','./style.css','./script.js','./conferir.js','./vendor/jsQR.js','./manifest.json','./icons/icon.svg','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png','./icons/apple-touch-icon.png','./data/index.json'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).catch(()=>{}).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));

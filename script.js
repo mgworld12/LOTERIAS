@@ -412,12 +412,23 @@ function nextText(t) {
   return n && n.date >= new Date().toISOString().slice(0, 10) ? `Próximo: nº ${n.contest} · ${fmtDate(n.date)}` : '';
 }
 // Números do último resultado, em grade (ex.: Lotofácil: 5 por linha).
+// Dias da semana em que a modalidade sorteia, deduzidos dos últimos concursos salvos (acompanha mudanças de calendário).
+function drawDays(t) {
+  const a = allDraws(t).slice(-24);
+  if (a.length < 4) return '';
+  const cnt = Array(7).fill(0),
+    names = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  a.forEach((d) => cnt[new Date(d.date + 'T12:00:00').getDay()]++);
+  const days = [1, 2, 3, 4, 5, 6, 0].filter((i) => cnt[i] / a.length >= 0.2);
+  if (days.join() === '1,2,3,4,5,6') return 'Seg a Sáb';
+  return days.map((i) => names[i]).join(' · ');
+}
 function lastNumsMarkup(t, d) {
   if (!d) return '<small class="last-extra">Sem resultado baixado</small>';
   const cols = ['lotofacil', 'quina', 'lotomania'].includes(t) ? 5 : d.numbers.length >= 7 ? 7 : 6,
     fmt = (n) => (t === 'supersete' ? n : pad(n)),
     grid = (list) =>
-      `<div class="last-nums" style="--cols:${cols}">${list.map((n) => `<span>${fmt(n)}</span>`).join('')}</div>`;
+      `<div class="last-nums" style="--cols:${cols};--sz:${cols >= 7 ? 27 : 30}px">${list.map((n) => `<span>${fmt(n)}</span>`).join('')}</div>`;
   let html = grid(d.numbers);
   if (d.secondNumbers?.length) html += `<small class="last-extra">2º sorteio</small>${grid(d.secondNumbers)}`;
   if (d.trevos?.length) html += `<small class="last-extra">Trevos: ${d.trevos.join(' · ')}</small>`;
@@ -429,8 +440,14 @@ function cardMarkup(t, key = t) {
   const virada = key === 'virada',
     a = virada ? allDraws('megasena').filter(isVirada) : allDraws(t),
     last = a[a.length - 1],
-    next = virada ? '' : nextText(t);
-  return `<article class="mod-card" data-type="${t}" data-key="${key}" data-selected="${selected === key}"><div class="card-main"><div class="card-left"><b>${virada ? 'Mega da Virada' : CFG[t].label}</b><strong title="${virada ? 'edições' : 'concursos armazenados'}">${a.length.toLocaleString('pt-BR')}</strong>${next ? `<small class="next">${next}</small>` : ''}</div><div class="card-right"><small class="last">${last ? `Último: nº ${last.contest} · ${fmtDate(last.date)}` : 'Último: não disponível'}</small>${lastNumsMarkup(t, last)}</div></div><span class="card-actions"><button type="button" class="mini" data-go="generator">Gerar jogo</button><button type="button" class="mini" data-go="stats">Estatísticas</button></span></article>`;
+    next = virada ? '' : nextText(t),
+    dd = virada ? '' : drawDays(t),
+    days = virada ? 'Sorteio anual: 31/12' : dd ? `Sorteios: ${dd}` : '',
+    foot =
+      days || next
+        ? `<div class="card-foot">${days ? `<span>${days}</span>` : ''}${next ? `<span class="next">${next}</span>` : ''}</div>`
+        : '';
+  return `<article class="mod-card" data-type="${t}" data-key="${key}" data-selected="${selected === key}"><div class="card-main"><div class="card-left"><b>${virada ? 'Mega da Virada' : CFG[t].label}</b><strong title="${virada ? 'edições' : 'concursos armazenados'}">${a.length.toLocaleString('pt-BR')}</strong></div><div class="card-right"><small class="last">${last ? `Último: nº ${last.contest} · ${fmtDate(last.date)}` : 'Último: não disponível'}</small>${lastNumsMarkup(t, last)}</div></div>${foot}<span class="card-actions"><button type="button" class="mini" data-go="generator">Gerar jogo</button><button type="button" class="mini" data-go="stats">Estatísticas</button></span></article>`;
 }
 function renderDashboard() {
   const m = meta();
