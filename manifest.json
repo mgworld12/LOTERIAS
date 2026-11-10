@@ -7,7 +7,7 @@
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#0c2536",
+  "background_color": "#f1f5f7",
   "theme_color": "#1d6e3a",
   "icons": [
     {
@@ -51,5 +51,9 @@
       "short_name": "Estatísticas",
       "url": "./#stats"
     }
+  ],
+  "categories": [
+    "lifestyle",
+    "utilities"
   ]
 }
